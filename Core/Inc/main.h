@@ -49,6 +49,8 @@ extern "C" {
 
 /* USER CODE END EM */
 
+void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
+
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
 
@@ -94,6 +96,14 @@ static void MX_I2C1_Init(void);
 #define LED3_GPIO_Port GPIOC
 #define LED2_Pin GPIO_PIN_15
 #define LED2_GPIO_Port GPIOC
+#define DIR_1_Pin GPIO_PIN_4
+#define DIR_1_GPIO_Port GPIOA
+#define DIR_2_Pin GPIO_PIN_1
+#define DIR_2_GPIO_Port GPIOB
+#define DIR_4_Pin GPIO_PIN_12
+#define DIR_4_GPIO_Port GPIOB
+#define DIR_3_Pin GPIO_PIN_9
+#define DIR_3_GPIO_Port GPIOA
 #define OUT2_Pin GPIO_PIN_3
 #define OUT2_GPIO_Port GPIOB
 #define OUT1_Pin GPIO_PIN_4
