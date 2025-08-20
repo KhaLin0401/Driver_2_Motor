@@ -34,36 +34,30 @@ typedef enum{
 // 💠 Cấu trúc hệ thống
 //------------------------------------------
 typedef struct {
-    uint16_t Device_ID;            // 0x00F0
-    uint16_t Firmware_Version;     // 0x00F1
-    uint16_t System_Status;        // 0x00F2
-    uint16_t System_Error;         // 0x00F3
-    uint16_t Reset_Error_Command;  // 0x00F4
-    uint16_t Config_Baudrate;      // 0x00F5
-    uint16_t Config_Parity;        // 0x00F6
+    uint16_t Device_ID;            // 0x0000
+    uint16_t Firmware_Version;     // 0x0001
+    uint16_t System_Status;        // 0x0002
+    uint16_t System_Error;         // 0x0003
+    uint16_t Reset_Error_Command;  // 0x0004
+    uint16_t Config_Baudrate;      // 0x0005
+    uint16_t Config_Parity;        // 0x0006
 } SystemRegisterMap_t;
 
-//------------------------------------------
-// 🔵 Cấu trúc Motor
-//------------------------------------------
 typedef struct {
-    uint8_t Control_Mode;       // 0x00X0
-    uint8_t Enable;             // 0x00X1
-    uint8_t Command_Speed;      // 0x00X2
-    uint8_t Linear_Input;       // 0x00X3
-    uint8_t Linear_Unit;        // 0x00X4
-    uint8_t Linear_State;       // 0x00X5
-    uint8_t Actual_Speed;       // 0x00X6
-    uint8_t Direction;          // 0x00X7
-    uint8_t PID_Kp;             // 0x00X8
-    uint8_t PID_Ki;             // 0x00X9
-    uint8_t PID_Kd;             // 0x00XA
-    uint8_t Status_Word;        // 0x00XB
-    uint8_t Error_Code;         // 0x00XC
-    uint8_t OnOff_Speed;        // 0x00XD
-    uint8_t Max_Acc;
-    uint8_t Max_Dec;
-
+    uint8_t Control_Mode;          // Base + 0x00
+    uint8_t Enable;                // Base + 0x01
+    uint8_t Command_Speed;         // Base + 0x02
+    uint8_t Actual_Speed;          // Base + 0x03
+    uint8_t Direction;             // Base + 0x04
+    uint8_t Max_Speed;             // Base + 0x05
+    uint8_t Min_Speed;             // Base + 0x06
+    uint8_t PID_Kp;               // Base + 0x07
+    uint8_t PID_Ki;               // Base + 0x08
+    uint8_t PID_Kd;               // Base + 0x09
+    uint8_t Max_Acc;      // Base + 0x0A
+    uint8_t Max_Dec;      // Base + 0x0B
+    uint8_t Status_Word;           // Base + 0x0C
+    uint8_t Error_Code;           // Base + 0x0D
 } MotorRegisterMap_t;
 
 typedef struct {
@@ -117,9 +111,9 @@ void Motor_Set_Enable(MotorRegisterMap_t* motor);
 void Motor_Set_Disable(MotorRegisterMap_t* motor);
 void Motor_Set_Direction(MotorRegisterMap_t* motor, uint8_t direction);
 void Motor_Set_Speed(MotorRegisterMap_t* motor, uint8_t speed);
-void Motor_Set_Linear_Input(MotorRegisterMap_t* motor, uint8_t input);
-void Motor_Set_Linear_Unit(MotorRegisterMap_t* motor, uint8_t unit);
-void Motor_Set_Linear_State(MotorRegisterMap_t* motor, uint8_t state);
+// void Motor_Set_Linear_Input(MotorRegisterMap_t* motor, uint8_t input);
+// void Motor_Set_Linear_Unit(MotorRegisterMap_t* motor, uint8_t unit);
+// void Motor_Set_Linear_State(MotorRegisterMap_t* motor, uint8_t state);
 void Motor_Set_PID_Kp(MotorRegisterMap_t* motor, uint8_t kp);
 void Motor_Set_PID_Ki(MotorRegisterMap_t* motor, uint8_t ki);
 void Motor_Set_PID_Kd(MotorRegisterMap_t* motor, uint8_t kd);
@@ -129,9 +123,9 @@ uint8_t Motor_Get_Mode(MotorRegisterMap_t* motor);
 uint8_t Motor_Get_Enable(MotorRegisterMap_t* motor);
 uint8_t Motor_Get_Direction(MotorRegisterMap_t* motor);
 uint8_t Motor_Get_Speed(MotorRegisterMap_t* motor);
-uint8_t Motor_Get_Linear_Input(MotorRegisterMap_t* motor);
-uint8_t Motor_Get_Linear_Unit(MotorRegisterMap_t* motor);
-uint8_t Motor_Get_Linear_State(MotorRegisterMap_t* motor);
+// uint8_t Motor_Get_Linear_Input(MotorRegisterMap_t* motor);
+// uint8_t Motor_Get_Linear_Unit(MotorRegisterMap_t* motor);
+// uint8_t Motor_Get_Linear_State(MotorRegisterMap_t* motor);
 uint8_t Motor_Get_PID_Kp(MotorRegisterMap_t* motor);
 uint8_t Motor_Get_PID_Ki(MotorRegisterMap_t* motor);
 uint8_t Motor_Get_PID_Kd(MotorRegisterMap_t* motor);
@@ -143,8 +137,6 @@ uint8_t Motor_Get_Error_Code(MotorRegisterMap_t* motor);
 uint8_t Motor_HandleOnOff(MotorRegisterMap_t* motor);
 
 // Xử lý LINEAR mode (mode 2)
-uint8_t Motor_HandleLinear(MotorRegisterMap_t* motor);
-
 // Xử lý PID mode (mode 3)
 uint8_t Motor_HandlePID(MotorRegisterMap_t* motor);
 

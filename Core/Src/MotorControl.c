@@ -5,30 +5,6 @@
 #include "stm32f1xx_hal.h"
 
 // Khởi tạo
-void SystemRegisters_Init(SystemRegisterMap_t* sys){
-    sys->Device_ID = 0x0003;
-    sys->Firmware_Version = 0x0101;
-    sys->System_Status = 0x0000;
-    sys->System_Error = 0x0000;
-    sys->Reset_Error_Command = 0;
-    sys->Config_Baudrate = 1;
-    sys->Config_Parity = 0;
-}
-void MotorRegisters_Init(MotorRegisterMap_t* motor){
-    motor->Control_Mode = 1;
-    motor->Enable = 0;
-    motor->Command_Speed = 0;
-    motor->Linear_Input = 0;
-    motor->Linear_Unit = 5;
-    motor->Linear_State = 0;
-    motor->Actual_Speed = 0;
-    motor->Direction = 0;
-    motor->PID_Kp = 100;
-    motor->PID_Ki = 10;
-    motor->PID_Kd = 5;
-    motor->Status_Word = 0x0000;
-    motor->Error_Code = 0;
-}
 
 MotorRegisterMap_t motor1;
 MotorRegisterMap_t motor2;
@@ -37,26 +13,48 @@ SystemRegisterMap_t system;
 PIDState_t pid_state1;
 PIDState_t pid_state2;
 
-
-// Load từ modbus registers
-void MotorRegisters_Load(MotorRegisterMap_t* motor, uint16_t base_addr){
-    motor->Control_Mode = g_holdingRegisters[base_addr + 0];
-    motor->Enable = g_holdingRegisters[base_addr + 1];
-    motor->Command_Speed = g_holdingRegisters[base_addr + 2];
-    motor->Linear_Input = g_holdingRegisters[base_addr + 3];
-    motor->Linear_Unit = g_holdingRegisters[base_addr + 4];
-    motor->Linear_State = g_holdingRegisters[base_addr + 5];
-    motor->Actual_Speed = g_holdingRegisters[base_addr + 6];
-    motor->Direction = g_holdingRegisters[base_addr + 7];
-    motor->PID_Kp = g_holdingRegisters[base_addr + 8];
-    motor->PID_Ki = g_holdingRegisters[base_addr + 9];
-    motor->PID_Kd = g_holdingRegisters[base_addr + 10];
-    motor->Status_Word = g_holdingRegisters[base_addr + 11];
-    motor->Error_Code = g_holdingRegisters[base_addr + 12];
-    motor->OnOff_Speed = g_holdingRegisters[base_addr + 13];
-    motor->Max_Acc = g_holdingRegisters[base_addr + 14];
-    motor->Max_Dec = g_holdingRegisters[base_addr + 15];
+uint16_t mapRegisterAddress(uint16_t modbusAddress) {
+    // System registers (0x0000-0x0006)
+    if (modbusAddress <= 0x0006) {
+        return modbusAddress;
+    }
+    // Motor 1 registers (0x0010-0x001D)
+    else if (modbusAddress >= 0x0010 && modbusAddress <= 0x001D) {
+        return modbusAddress;
+    }
+    // Motor 2 registers (0x0020-0x002D)
+    else if (modbusAddress >= 0x0020 && modbusAddress <= 0x002D) {
+        return modbusAddress;
+    }
+    // Digital Input registers (0x0030-0x0034)
+    else if (modbusAddress >= 0x0030 && modbusAddress <= 0x0034) {
+        return modbusAddress;
+    }
+    // Digital Output registers (0x0040-0x0044)
+    else if (modbusAddress >= 0x0040 && modbusAddress <= 0x0044) {
+        return modbusAddress;
+    }
+    
+    return modbusAddress; // Return as is if not in any range
 }
+// Load từ modbus registers
+void MotorRegisters_Load(MotorRegisterMap_t* motor, uint16_t base_addr) {
+    motor->Control_Mode = g_holdingRegisters[base_addr + 0x00];
+    motor->Enable = g_holdingRegisters[base_addr + 0x01];
+    motor->Command_Speed = g_holdingRegisters[base_addr + 0x02];
+    motor->Actual_Speed = g_holdingRegisters[base_addr + 0x03];
+    motor->Direction = g_holdingRegisters[base_addr + 0x04];
+    motor->Max_Speed = g_holdingRegisters[base_addr + 0x05];
+    motor->Min_Speed = g_holdingRegisters[base_addr + 0x06];
+    motor->PID_Kp = g_holdingRegisters[base_addr + 0x07];
+    motor->PID_Ki = g_holdingRegisters[base_addr + 0x08];
+    motor->PID_Kd = g_holdingRegisters[base_addr + 0x09];
+    motor->Max_Acc = g_holdingRegisters[base_addr + 0x0A];
+    motor->Max_Dec = g_holdingRegisters[base_addr + 0x0B];
+    motor->Status_Word = g_holdingRegisters[base_addr + 0x0C];
+    motor->Error_Code = g_holdingRegisters[base_addr + 0x0D];
+}
+
 void SystemRegisters_Load(SystemRegisterMap_t* sys, uint16_t base_addr){
     sys->Device_ID = g_holdingRegisters[base_addr + 0];
     sys->Firmware_Version = g_holdingRegisters[base_addr + 1];
@@ -69,22 +67,20 @@ void SystemRegisters_Load(SystemRegisterMap_t* sys, uint16_t base_addr){
 
 // Save lại vào modbus registers
 void MotorRegisters_Save(MotorRegisterMap_t* motor, uint16_t base_addr){
-    g_holdingRegisters[base_addr + 0] = motor->Control_Mode;
-    g_holdingRegisters[base_addr + 1] = motor->Enable;
-    g_holdingRegisters[base_addr + 2] = motor->Command_Speed;
-    g_holdingRegisters[base_addr + 3] = motor->Linear_Input;
-    g_holdingRegisters[base_addr + 4] = motor->Linear_Unit;
-    g_holdingRegisters[base_addr + 5] = motor->Linear_State;
-    g_holdingRegisters[base_addr + 6] = motor->Actual_Speed;
-    g_holdingRegisters[base_addr + 7] = motor->Direction;
-    g_holdingRegisters[base_addr + 8] = motor->PID_Kp;
-    g_holdingRegisters[base_addr + 9] = motor->PID_Ki;
-    g_holdingRegisters[base_addr + 10] = motor->PID_Kd;
-    g_holdingRegisters[base_addr + 11] = motor->Status_Word;
-    g_holdingRegisters[base_addr + 12] = motor->Error_Code;
-    g_holdingRegisters[base_addr + 13] = motor->OnOff_Speed;
-    g_holdingRegisters[base_addr + 14] = motor->Max_Acc;
-    g_holdingRegisters[base_addr + 15] = motor->Max_Dec;
+    g_holdingRegisters[base_addr + 0x00] = motor->Control_Mode;
+    g_holdingRegisters[base_addr + 0x01] = motor->Enable;
+    g_holdingRegisters[base_addr + 0x02] = motor->Command_Speed;
+    g_holdingRegisters[base_addr + 0x03] = motor->Actual_Speed;
+    g_holdingRegisters[base_addr + 0x04] = motor->Direction;
+    g_holdingRegisters[base_addr + 0x05] = motor->Max_Speed;
+    g_holdingRegisters[base_addr + 0x06] = motor->Min_Speed;
+    g_holdingRegisters[base_addr + 0x07] = motor->PID_Kp;
+    g_holdingRegisters[base_addr + 0x08] = motor->PID_Ki;
+    g_holdingRegisters[base_addr + 0x09] = motor->PID_Kd;
+    g_holdingRegisters[base_addr + 0x0A] = motor->Max_Acc;
+    g_holdingRegisters[base_addr + 0x0B] = motor->Max_Dec;
+    g_holdingRegisters[base_addr + 0x0C] = motor->Status_Word;
+    g_holdingRegisters[base_addr + 0x0D] = motor->Error_Code;
 }
 void SystemRegisters_Save(SystemRegisterMap_t* sys, uint16_t base_addr){
     g_holdingRegisters[base_addr + 0] = sys->Device_ID;
@@ -103,11 +99,6 @@ void Motor_ProcessControl(MotorRegisterMap_t* motor){
             case CONTROL_MODE_ONOFF:
                 Motor_HandleOnOff(motor);
                 break;
-
-            case CONTROL_MODE_LINEAR:
-                Motor_HandleLinear(motor);
-                break;
-
             case CONTROL_MODE_PID:
                 Motor_HandlePID(motor);
                 break;
@@ -169,18 +160,6 @@ void Motor_Set_Speed(MotorRegisterMap_t* motor, uint8_t speed){
 
 }
 
-void Motor_Set_Linear_Input(MotorRegisterMap_t* motor, uint8_t input){
-    motor->Linear_Input = input;
-    
-}
-
-void Motor_Set_Linear_Unit(MotorRegisterMap_t* motor, uint8_t unit){
-    motor->Linear_Unit = unit;
-}
-
-void Motor_Set_Linear_State(MotorRegisterMap_t* motor, uint8_t state){
-    motor->Linear_State = state;
-}
 
 void Motor_Set_PID_Kp(MotorRegisterMap_t* motor, uint8_t kp){
     motor->PID_Kp = kp;
@@ -202,7 +181,6 @@ uint8_t Motor_HandleOnOff(MotorRegisterMap_t* motor) {
         motor->Status_Word = 0x0001;
         g_holdingRegisters[REG_M1_STATUS_WORD] = 0x0001;
         // Xuất PWM theo tốc độ đặt
-        duty = motor->OnOff_Speed;
     } else {
         motor->Status_Word = 0x0000;
         g_holdingRegisters[REG_M1_STATUS_WORD] = 0x0000;
@@ -214,34 +192,6 @@ uint8_t Motor_HandleOnOff(MotorRegisterMap_t* motor) {
 }
 
 // Xử lý LINEAR mode (mode 2)
-uint8_t Motor_HandleLinear(MotorRegisterMap_t* motor) {
-    // Tăng tốc
-    if (motor->Actual_Speed < motor->Linear_Input) {
-        if (motor->Linear_State == 1) {
-            // Giới hạn tốc độ đặt trong khoảng hợp lệ (giả sử 0 - 1000)
-            if (motor->Actual_Speed + motor->Linear_Unit > motor->Linear_Input) {
-                motor->Actual_Speed = motor->Linear_Input;
-            } else {
-                motor->Actual_Speed += motor->Linear_Unit;
-            }
-        }
-    } 
-    // Giảm tốc
-    else if (motor->Actual_Speed > motor->Linear_Input) {
-        if (motor->Linear_State == 0) {
-            if (motor->Actual_Speed - motor->Linear_Unit < motor->Linear_Input) {
-                motor->Actual_Speed = motor->Linear_Input;
-            } else {
-                motor->Actual_Speed -= motor->Linear_Unit;
-            }
-        }
-    }
-
-    // Tính toán duty cycle PWM dựa vào tốc độ đặt
-    uint16_t duty = motor->Actual_Speed * 100 / 1000;  // kết quả: 0 - 100%
-    return duty;
-}
-
 // Xử lý PID mode (mode 3)
 uint8_t Motor_HandlePID(MotorRegisterMap_t* motor) {
     uint8_t motor_id = (motor == &motor1) ? 1 : 2;

@@ -53,55 +53,51 @@ void initializeModbusRegisters(void) {
     g_holdingRegisters[REG_CONFIG_PARITY] = DEFAULT_CONFIG_PARITY;
     
     // Motor 1 Registers (0x0000-0x000C)
-    g_holdingRegisters[REG_M1_CONTROL_MODE] = DEFAULT_M1_CONTROL_MODE;
-    g_holdingRegisters[REG_M1_ENABLE] = DEFAULT_M1_ENABLE;
-    g_holdingRegisters[REG_M1_COMMAND_SPEED] = DEFAULT_M1_COMMAND_SPEED;
-    g_holdingRegisters[REG_M1_LINEAR_INPUT] = DEFAULT_M1_LINEAR_INPUT;
-    g_holdingRegisters[REG_M1_LINEAR_UNIT] = DEFAULT_M1_LINEAR_UNIT;
-    g_holdingRegisters[REG_M1_LINEAR_STATE] = DEFAULT_M1_LINEAR_STATE;
-    g_holdingRegisters[REG_M1_ACTUAL_SPEED] = DEFAULT_M1_ACTUAL_SPEED;
-    g_holdingRegisters[REG_M1_DIRECTION] = DEFAULT_M1_DIRECTION;
-    g_holdingRegisters[REG_M1_PID_KP] = DEFAULT_M1_PID_KP;
-    g_holdingRegisters[REG_M1_PID_KI] = DEFAULT_M1_PID_KI;
-    g_holdingRegisters[REG_M1_PID_KD] = DEFAULT_M1_PID_KD;
-    g_holdingRegisters[REG_M1_STATUS_WORD] = DEFAULT_M1_STATUS_WORD;
-    g_holdingRegisters[REG_M1_ERROR_CODE] = DEFAULT_M1_ERROR_CODE;
-    g_holdingRegisters[REG_M1_ONOFF_SPEED] = DEFAULT_M1_ONOFF_SPEED;
-    g_holdingRegisters[REG_M1_MAX_ACCELERATION] = DEFAULT_M1_MAX_ACCELERATION;
-    g_holdingRegisters[REG_M1_MAX_DECELERATION] = DEFAULT_M1_MAX_DECELERATION;
+    g_holdingRegisters[REG_M1_CONTROL_MODE] = DEFAULT_CONTROL_MODE;
+    g_holdingRegisters[REG_M1_ENABLE] = DEFAULT_ENABLE;
+    g_holdingRegisters[REG_M1_COMMAND_SPEED] = DEFAULT_COMMAND_SPEED;
+    g_holdingRegisters[REG_M1_ACTUAL_SPEED] = DEFAULT_ACTUAL_SPEED;
+    g_holdingRegisters[REG_M1_DIRECTION] = DEFAULT_DIRECTION;
+    g_holdingRegisters[REG_M1_PID_KP] = DEFAULT_PID_KP;
+    g_holdingRegisters[REG_M1_PID_KI] = DEFAULT_PID_KI;
+    g_holdingRegisters[REG_M1_PID_KD] = DEFAULT_PID_KD;
+    g_holdingRegisters[REG_M1_STATUS_WORD] = DEFAULT_STATUS_WORD;
+    g_holdingRegisters[REG_M1_ERROR_CODE] = DEFAULT_ERROR_CODE;
+    g_holdingRegisters[REG_M1_MAX_SPEED] = DEFAULT_MAX_SPEED;
+    g_holdingRegisters[REG_M1_MIN_SPEED] = DEFAULT_MIN_SPEED;
+    g_holdingRegisters[REG_M1_MAX_ACCELERATION] = DEFAULT_MAX_ACCELERATION;
+    g_holdingRegisters[REG_M1_MAX_DECELERATION] = DEFAULT_MAX_DECELERATION;
     
     // Motor 2 Registers (0x0010-0x001C)
-    g_holdingRegisters[REG_M2_CONTROL_MODE] = DEFAULT_M2_CONTROL_MODE;
-    g_holdingRegisters[REG_M2_ENABLE] = DEFAULT_M2_ENABLE;
-    g_holdingRegisters[REG_M2_COMMAND_SPEED] = DEFAULT_M2_COMMAND_SPEED;
-    g_holdingRegisters[REG_M2_LINEAR_INPUT] = DEFAULT_M2_LINEAR_INPUT;
-    g_holdingRegisters[REG_M2_LINEAR_UNIT] = DEFAULT_M2_LINEAR_UNIT;
-    g_holdingRegisters[REG_M2_LINEAR_STATE] = DEFAULT_M2_LINEAR_STATE;
-    g_holdingRegisters[REG_M2_ACTUAL_SPEED] = DEFAULT_M2_ACTUAL_SPEED;
-    g_holdingRegisters[REG_M2_DIRECTION] = DEFAULT_M2_DIRECTION;
-    g_holdingRegisters[REG_M2_PID_KP] = DEFAULT_M2_PID_KP;
-    g_holdingRegisters[REG_M2_PID_KI] = DEFAULT_M2_PID_KI;
-    g_holdingRegisters[REG_M2_PID_KD] = DEFAULT_M2_PID_KD;
-    g_holdingRegisters[REG_M2_STATUS_WORD] = DEFAULT_M2_STATUS_WORD;
-    g_holdingRegisters[REG_M2_ERROR_CODE] = DEFAULT_M2_ERROR_CODE;
-    g_holdingRegisters[REG_M2_ONOFF_SPEED] = DEFAULT_M2_ONOFF_SPEED;
-    g_holdingRegisters[REG_M2_MAX_ACCELERATION] = DEFAULT_M2_MAX_ACCELERATION;
-    g_holdingRegisters[REG_M2_MAX_DECELERATION] = DEFAULT_M2_MAX_DECELERATION;
+    g_holdingRegisters[REG_M2_CONTROL_MODE] = DEFAULT_CONTROL_MODE;
+    g_holdingRegisters[REG_M2_ENABLE] = DEFAULT_ENABLE;
+    g_holdingRegisters[REG_M2_COMMAND_SPEED] = DEFAULT_COMMAND_SPEED;
+    g_holdingRegisters[REG_M2_ACTUAL_SPEED] = DEFAULT_ACTUAL_SPEED;
+    g_holdingRegisters[REG_M2_DIRECTION] = DEFAULT_DIRECTION;
+    g_holdingRegisters[REG_M2_PID_KP] = DEFAULT_PID_KP;
+    g_holdingRegisters[REG_M2_PID_KI] = DEFAULT_PID_KI;
+    g_holdingRegisters[REG_M2_PID_KD] = DEFAULT_PID_KD;
+    g_holdingRegisters[REG_M2_STATUS_WORD] = DEFAULT_STATUS_WORD;
+    g_holdingRegisters[REG_M2_ERROR_CODE] = DEFAULT_ERROR_CODE;
+    g_holdingRegisters[REG_M2_MAX_SPEED] = DEFAULT_MAX_SPEED;
+    g_holdingRegisters[REG_M2_MIN_SPEED] = DEFAULT_MIN_SPEED;
+    g_holdingRegisters[REG_M2_MAX_ACCELERATION] = DEFAULT_MAX_ACCELERATION;
+    g_holdingRegisters[REG_M2_MAX_DECELERATION] = DEFAULT_MAX_DECELERATION;
     
     // Input Registers (0x0020-0x0024)
-    g_holdingRegisters[REG_DI_STATUS_WORD] = DEFAULT_DI_STATUS_WORD;
-    g_holdingRegisters[REG_DI1_ASSIGNMENT] = DEFAULT_DI1_ASSIGNMENT;
-    g_holdingRegisters[REG_DI2_ASSIGNMENT] = DEFAULT_DI2_ASSIGNMENT;
-    g_holdingRegisters[REG_DI3_ASSIGNMENT] = DEFAULT_DI3_ASSIGNMENT;
-    g_holdingRegisters[REG_DI4_ASSIGNMENT] = DEFAULT_DI4_ASSIGNMENT;
+    g_holdingRegisters[REG_DI_STATUS_WORD] = 0;
+    g_holdingRegisters[REG_DI1_ASSIGNMENT] = 0;
+    g_holdingRegisters[REG_DI2_ASSIGNMENT] = 0;
+    g_holdingRegisters[REG_DI3_ASSIGNMENT] = 0;
+    g_holdingRegisters[REG_DI4_ASSIGNMENT] = 0;
     
-    // Output Registers (0x0030-0x0034)
-    g_holdingRegisters[REG_DO_STATUS_WORD] = DEFAULT_DO_STATUS_WORD;
-    g_holdingRegisters[REG_DO1_CONTROL] = DEFAULT_DO1_CONTROL;
-    g_holdingRegisters[REG_DO1_ASSIGNMENT] = DEFAULT_DO1_ASSIGNMENT;
-    g_holdingRegisters[REG_DO2_CONTROL] = DEFAULT_DO2_CONTROL;
-    g_holdingRegisters[REG_DO2_ASSIGNMENT] = DEFAULT_DO2_ASSIGNMENT;
-    
+    // Output Registers (0x0040-0x0044)  
+    g_holdingRegisters[REG_DO_STATUS_WORD] = 0;
+    g_holdingRegisters[REG_DO1_CONTROL] = 0;
+    g_holdingRegisters[REG_DO1_ASSIGNMENT] = 0;
+    g_holdingRegisters[REG_DO2_CONTROL] = 0;
+    g_holdingRegisters[REG_DO2_ASSIGNMENT] = 0;
+
     // Initialize other arrays
     for (int i = 0; i < INPUT_REG_COUNT; i++) {
         g_inputRegisters[i] = 0;

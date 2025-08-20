@@ -569,8 +569,8 @@ void StartUartTask(void *argument)
 /* USER CODE END Header_MotorTaskStart */
 void MotorTaskStart(void *argument)
 {
-  const uint16_t M1_BASE_ADDR = 0x0000;
-  const uint16_t M2_BASE_ADDR = 0x0010;
+  const uint16_t M1_BASE_ADDR = 0x0010;
+  const uint16_t M2_BASE_ADDR = 0x0020;
 
   // Vòng lặp RTOS
   for (;;)
