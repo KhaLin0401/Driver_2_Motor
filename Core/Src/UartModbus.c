@@ -2,6 +2,14 @@
 #include "stm32f1xx_hal.h"
 #include "stm32f1xx_it.h"
 #include "main.h"
+#include "ModbusMap.h"
+
+I2C_HandleTypeDef hi2c1;
+
+TIM_HandleTypeDef htim1;
+TIM_HandleTypeDef htim2;
+
+UART_HandleTypeDef huart2;
 
 // Global register arrays definition
 uint16_t g_holdingRegisters[HOLDING_REG_COUNT];
@@ -10,18 +18,18 @@ uint8_t g_coils[COIL_COUNT];
 uint8_t g_discreteInputs[DISCRETE_COUNT];
 
 // Task counters
-volatile unsigned long g_taskCounter = 0;
-volatile unsigned long g_modbusCounter = 0;
+uint32_t g_taskCounter = 0;
+uint32_t g_modbusCounter = 0;
 
 // UART buffer variables
 uint8_t rxBuffer[RX_BUFFER_SIZE];
 uint8_t rxIndex = 0;
 uint8_t frameReceived = 0;
-volatile unsigned long g_lastUARTActivity = 0;
+uint32_t g_lastUARTActivity = 0;
 
 // Diagnostic variables
-volatile unsigned long g_totalReceived = 0;
-volatile unsigned long g_corruptionCount = 0;
+uint32_t g_totalReceived = 0;
+uint32_t g_corruptionCount = 0;
 uint8_t g_receivedIndex = 0;
 
 // MODIFICATION LOG
@@ -58,6 +66,9 @@ void initializeModbusRegisters(void) {
     g_holdingRegisters[REG_M1_PID_KD] = DEFAULT_M1_PID_KD;
     g_holdingRegisters[REG_M1_STATUS_WORD] = DEFAULT_M1_STATUS_WORD;
     g_holdingRegisters[REG_M1_ERROR_CODE] = DEFAULT_M1_ERROR_CODE;
+    g_holdingRegisters[REG_M1_ONOFF_SPEED] = DEFAULT_M1_ONOFF_SPEED;
+    g_holdingRegisters[REG_M1_MAX_ACCELERATION] = DEFAULT_M1_MAX_ACCELERATION;
+    g_holdingRegisters[REG_M1_MAX_DECELERATION] = DEFAULT_M1_MAX_DECELERATION;
     
     // Motor 2 Registers (0x0010-0x001C)
     g_holdingRegisters[REG_M2_CONTROL_MODE] = DEFAULT_M2_CONTROL_MODE;
@@ -73,6 +84,9 @@ void initializeModbusRegisters(void) {
     g_holdingRegisters[REG_M2_PID_KD] = DEFAULT_M2_PID_KD;
     g_holdingRegisters[REG_M2_STATUS_WORD] = DEFAULT_M2_STATUS_WORD;
     g_holdingRegisters[REG_M2_ERROR_CODE] = DEFAULT_M2_ERROR_CODE;
+    g_holdingRegisters[REG_M2_ONOFF_SPEED] = DEFAULT_M2_ONOFF_SPEED;
+    g_holdingRegisters[REG_M2_MAX_ACCELERATION] = DEFAULT_M2_MAX_ACCELERATION;
+    g_holdingRegisters[REG_M2_MAX_DECELERATION] = DEFAULT_M2_MAX_DECELERATION;
     
     // Input Registers (0x0020-0x0024)
     g_holdingRegisters[REG_DI_STATUS_WORD] = DEFAULT_DI_STATUS_WORD;
@@ -183,7 +197,7 @@ void updateDigitalIOStatus(void) {
 
 static void MX_USART2_UART_Init(void) {
     huart2.Instance = USART2;
-    huart2.Init.BaudRate = 9600;
+    huart2.Init.BaudRate = 115200;
     huart2.Init.WordLength = UART_WORDLENGTH_8B;
     huart2.Init.StopBits = UART_STOPBITS_1;
     huart2.Init.Parity = UART_PARITY_NONE;

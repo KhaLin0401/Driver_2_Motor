@@ -1,10 +1,6 @@
-../Core/Src/main.c:618:6:StartDefaultTask	1
-../Core/Src/main.c:253:6:SystemClock_Config	3
-../Core/Src/main.c:134:5:main	6
-../Core/Src/main.c:444:10:calcCRC	3
-../Core/Src/main.c:492:6:HAL_UART_ErrorCallback	2
-../Core/Src/main.c:502:6:resetUARTCommunication	1
-../Core/Src/main.c:509:6:processModbusFrame	19
-../Core/Src/main.c:460:6:HAL_UART_RxCpltCallback	9
-../Core/Src/main.c:646:6:StartUartTask	3
-../Core/Src/main.c:675:6:Error_Handler	1
+../Core/Src/main.c:510:6:StartDefaultTask	1
+../Core/Src/main.c:538:6:StartUartTask	3
+../Core/Src/main.c:570:6:MotorTaskStart	1
+../Core/Src/main.c:219:6:SystemClock_Config	3
+../Core/Src/main.c:99:5:main	13
+../Core/Src/main.c:601:6:Error_Handler	1

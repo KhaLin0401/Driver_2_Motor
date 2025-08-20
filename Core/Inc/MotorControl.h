@@ -1,23 +1,178 @@
-#ifndef MOTOR_CONTROL_H
-#define MOTOR_CONTROL_H
+#ifndef __MOTOR_MODBUS_MAP_H__
+#define __MOTOR_MODBUS_MAP_H__
 
-typedef struct
-{
-    uint8_t Control_Mode;      // 0x0000: 1=ONOFF, 2=LINEAR, 3=PID
-    uint8_t Enable;            // 0x0001: 0=DISABLE, 1=ENABLE
-    uint8_t Command_Speed;     // 0x0002: Speed setpoint
-    uint8_t Linear_Input;      // 0x0003: Linear control input (0–100%)
-    uint8_t Linear_Unit;       // 0x0004: Linear unit (0-20%)
-    uint8_t Linear_State;      // 0x0005: 0=DECELERATION, 1=ACCELERATION
-    uint8_t Actual_Speed;      // 0x0006: Measured speed
-    uint8_t Direction;         // 0x0007: 0=Idle, 1=Forward, 2=Reverse
-    uint8_t PID_Kp;            // 0x0008: PID Kp gain (×100)
-    uint8_t PID_Ki;            // 0x0009: PID Ki gain (×100)
-    uint8_t PID_Kd;            // 0x000A: PID Kd gain (×100)
-    uint8_t Status_Word;       // 0x000B: Motor status flags
-    uint8_t Error_Code;        // 0x000C: Error code if any
-} MotorControl_t;
+#include <stdint.h>
+#include "main.h"
 
-
-
+#ifdef __cplusplus
+extern "C" {
 #endif
+
+#define MODE_ONOFF 1
+#define MODE_LINEAR 2
+#define MODE_PID 3
+
+typedef enum{
+    IDLE = 0,
+    FORWARD = 1,
+    REVERSE = 2
+} MotorDirection_t;
+
+typedef enum{
+    MOTOR_STATE_DISABLE = 0,
+    MOTOR_STATE_ENABLE = 1
+} MotorEnable_t;
+
+typedef enum{
+    LINEAR_INPUT_NONE = 0,
+    LINEAR_INPUT_LINEAR = 1,
+    LINEAR_INPUT_PID = 2
+} LinearInput_t;
+
+
+//------------------------------------------
+// 💠 Cấu trúc hệ thống
+//------------------------------------------
+typedef struct {
+    uint16_t Device_ID;            // 0x00F0
+    uint16_t Firmware_Version;     // 0x00F1
+    uint16_t System_Status;        // 0x00F2
+    uint16_t System_Error;         // 0x00F3
+    uint16_t Reset_Error_Command;  // 0x00F4
+    uint16_t Config_Baudrate;      // 0x00F5
+    uint16_t Config_Parity;        // 0x00F6
+} SystemRegisterMap_t;
+
+//------------------------------------------
+// 🔵 Cấu trúc Motor
+//------------------------------------------
+typedef struct {
+    uint8_t Control_Mode;       // 0x00X0
+    uint8_t Enable;             // 0x00X1
+    uint8_t Command_Speed;      // 0x00X2
+    uint8_t Linear_Input;       // 0x00X3
+    uint8_t Linear_Unit;        // 0x00X4
+    uint8_t Linear_State;       // 0x00X5
+    uint8_t Actual_Speed;       // 0x00X6
+    uint8_t Direction;          // 0x00X7
+    uint8_t PID_Kp;             // 0x00X8
+    uint8_t PID_Ki;             // 0x00X9
+    uint8_t PID_Kd;             // 0x00XA
+    uint8_t Status_Word;        // 0x00XB
+    uint8_t Error_Code;         // 0x00XC
+    uint8_t OnOff_Speed;        // 0x00XD
+    uint8_t Max_Acc;
+    uint8_t Max_Dec;
+
+} MotorRegisterMap_t;
+
+typedef struct {
+    float integral;             // Accumulated error
+    float last_error;          // Previous error
+    float output;              // Current output
+    float error;               // Current error
+    float max_integral;        // Anti-windup limit
+    float acceleration_limit;   // Rate of change limit
+    float max_output;          // Maximum output limit
+} PIDState_t;
+//------------------------------------------
+//  Vùng nhớ ánh xạ thanh ghi
+//------------------------------------------
+#define HOLDING_REG_SIZE     256
+extern uint8_t modbus_holding_registers[HOLDING_REG_SIZE];
+
+//------------------------------------------
+//  Con trỏ struct ánh xạ từ vùng nhớ
+//------------------------------------------
+
+extern MotorRegisterMap_t motor1;
+extern MotorRegisterMap_t motor2;
+
+extern SystemRegisterMap_t system;
+
+extern PIDState_t pid_state1;
+extern PIDState_t pid_state2;
+
+//------------------------------------------
+//  Các hàm thao tác
+//------------------------------------------
+
+// Khởi tạo
+void SystemRegisters_Init(SystemRegisterMap_t* sys);
+void MotorRegisters_Init(MotorRegisterMap_t* motor);
+
+// Load từ modbus registers
+void MotorRegisters_Load(MotorRegisterMap_t* motor, uint16_t base_addr);
+void SystemRegisters_Load(SystemRegisterMap_t* sys, uint16_t base_addr);
+
+// Save lại vào modbus registers
+void MotorRegisters_Save(MotorRegisterMap_t* motor, uint16_t base_addr);
+void SystemRegisters_Save(SystemRegisterMap_t* sys, uint16_t base_addr);
+
+// Xử lý logic điều khiển motor
+void Motor_ProcessControl(MotorRegisterMap_t* motor);
+
+void Motor_Set_Mode(MotorRegisterMap_t* motor, uint8_t mode);
+void Motor_Set_Enable(MotorRegisterMap_t* motor);
+void Motor_Set_Disable(MotorRegisterMap_t* motor);
+void Motor_Set_Direction(MotorRegisterMap_t* motor, uint8_t direction);
+void Motor_Set_Speed(MotorRegisterMap_t* motor, uint8_t speed);
+void Motor_Set_Linear_Input(MotorRegisterMap_t* motor, uint8_t input);
+void Motor_Set_Linear_Unit(MotorRegisterMap_t* motor, uint8_t unit);
+void Motor_Set_Linear_State(MotorRegisterMap_t* motor, uint8_t state);
+void Motor_Set_PID_Kp(MotorRegisterMap_t* motor, uint8_t kp);
+void Motor_Set_PID_Ki(MotorRegisterMap_t* motor, uint8_t ki);
+void Motor_Set_PID_Kd(MotorRegisterMap_t* motor, uint8_t kd);
+
+
+uint8_t Motor_Get_Mode(MotorRegisterMap_t* motor);
+uint8_t Motor_Get_Enable(MotorRegisterMap_t* motor);
+uint8_t Motor_Get_Direction(MotorRegisterMap_t* motor);
+uint8_t Motor_Get_Speed(MotorRegisterMap_t* motor);
+uint8_t Motor_Get_Linear_Input(MotorRegisterMap_t* motor);
+uint8_t Motor_Get_Linear_Unit(MotorRegisterMap_t* motor);
+uint8_t Motor_Get_Linear_State(MotorRegisterMap_t* motor);
+uint8_t Motor_Get_PID_Kp(MotorRegisterMap_t* motor);
+uint8_t Motor_Get_PID_Ki(MotorRegisterMap_t* motor);
+uint8_t Motor_Get_PID_Kd(MotorRegisterMap_t* motor);
+uint8_t Motor_Get_Status_Word(MotorRegisterMap_t* motor);
+uint8_t Motor_Get_Error_Code(MotorRegisterMap_t* motor);
+
+
+// Xử lý ON/OFF mode (mode 1)
+uint8_t Motor_HandleOnOff(MotorRegisterMap_t* motor);
+
+// Xử lý LINEAR mode (mode 2)
+uint8_t Motor_HandleLinear(MotorRegisterMap_t* motor);
+
+// Xử lý PID mode (mode 3)
+uint8_t Motor_HandlePID(MotorRegisterMap_t* motor);
+
+// Gửi tín hiệu PWM dựa vào Actual_Speed
+void Motor1_OutputPWM(MotorRegisterMap_t* motor, uint8_t duty_percent);  // motor_id = 1 hoặc 2
+void Motor2_OutputPWM(MotorRegisterMap_t* motor, uint8_t duty_percent);  // motor_id = 1 hoặc 2
+
+// Điều khiển chiều quay motor
+void Motor_SetDirection(uint8_t motor_id, uint8_t direction);  // 0=Idle, 1=Forward, 2=Reverse
+
+// Khởi tạo giá trị PID cho từng motor
+void PID_Init(uint8_t motor_id, float kp, float ki, float kd);
+
+// Tính toán PID mỗi chu kỳ
+float PID_Compute(uint8_t motor_id, float setpoint, float feedback);
+
+// Reset các lỗi nếu có
+void Motor_ResetError(MotorRegisterMap_t* motor);
+
+// Kiểm tra và xử lý các điều kiện lỗi (overcurrent, timeout,...)
+void Motor_CheckError(MotorRegisterMap_t* motor);
+
+// Debug/log
+void Motor_DebugPrint(const MotorRegisterMap_t* motor, const char* name);
+void System_DebugPrint(const SystemRegisterMap_t* sys);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // __MOTOR_MODBUS_MAP_H__

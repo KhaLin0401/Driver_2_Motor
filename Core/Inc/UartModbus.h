@@ -1,12 +1,13 @@
 #ifndef UART_MODBUS_H
 #define UART_MODBUS_H
 
-#include "ModbusRegisters.h"
+#include "main.h"
+#include <stdint.h>
 
 #define MODBUS_SLAVE_ADDRESS    3
 #define MODBUS_BAUDRATE         9600
 #define HOLDING_REG_START       0x0000
-#define HOLDING_REG_COUNT       53  // Updated to match complete modbus map
+#define HOLDING_REG_COUNT       53  // Increased to cover all register addresses
 #define INPUT_REG_START         0x0000
 #define INPUT_REG_COUNT         5
 #define COIL_START              0x0000

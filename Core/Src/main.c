@@ -19,6 +19,9 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
+#include "MotorControl.h"
+#include "ModbusMap.h"
+#include "UartModbus.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -41,12 +44,7 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-I2C_HandleTypeDef hi2c1;
 
-TIM_HandleTypeDef htim1;
-TIM_HandleTypeDef htim2;
-
-UART_HandleTypeDef huart2;
 
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;
@@ -124,6 +122,7 @@ int main(void)
   MX_TIM2_Init();
   MX_USART2_UART_Init();
   MX_TIM1_Init();
+  
   /* USER CODE BEGIN 2 */
   // Initialize global variables
   g_totalReceived = 0;
@@ -131,9 +130,10 @@ int main(void)
   g_receivedIndex = 0;
   
   // Initialize Modbus registers
-  for (int i = 0; i < HOLDING_REG_COUNT; i++) {
-    g_holdingRegisters[i] = 0;
-  }
+  // for (int i = 0; i < HOLDING_REG_COUNT; i++) {
+  //   g_holdingRegisters[i] = 0;
+  // }
+  initializeModbusRegisters();
   // Set some default values for important registers
   for (int i = 0; i < INPUT_REG_COUNT; i++) {
     g_inputRegisters[i] = 0;
@@ -425,7 +425,7 @@ static void MX_USART2_UART_Init(void)
 
   /* USER CODE END USART2_Init 1 */
   huart2.Instance = USART2;
-  huart2.Init.BaudRate = 9600;
+  huart2.Init.BaudRate = 115200;
   huart2.Init.WordLength = UART_WORDLENGTH_8B;
   huart2.Init.StopBits = UART_STOPBITS_1;
   huart2.Init.Parity = UART_PARITY_NONE;
@@ -569,29 +569,29 @@ void StartUartTask(void *argument)
 /* USER CODE END Header_MotorTaskStart */
 void MotorTaskStart(void *argument)
 {
-	const uint16_t M1_BASE_ADDR = 0x0000;
-	const uint16_t M2_BASE_ADDR = 0x0010;
+  const uint16_t M1_BASE_ADDR = 0x0000;
+  const uint16_t M2_BASE_ADDR = 0x0010;
 
-	// Vòng lặp RTOS
-	for (;;)
-	{
-		// 1. Load dữ liệu từ Modbus registers
-		MotorRegisters_Load(&motor1, M1_BASE_ADDR);
-		MotorRegisters_Load(&motor2, M2_BASE_ADDR);
+  // Vòng lặp RTOS
+  for (;;)
+  {
+      // 1. Load dữ liệu từ Modbus registers
+      MotorRegisters_Load(&motor1, M1_BASE_ADDR);
+      MotorRegisters_Load(&motor2, M2_BASE_ADDR);
 
-		// 2. Xử lý logic điều khiển motor 1
-		Motor_ProcessControl(&motor1);
+      // 2. Xử lý logic điều khiển motor 1
+      Motor_ProcessControl(&motor1);
 
-		// 3. Xử lý logic điều khiển motor 2
-		Motor_ProcessControl(&motor2);
+      // 3. Xử lý logic điều khiển motor 2
+      Motor_ProcessControl(&motor2);
 
-		// 4. Save lại dữ liệu ngược ra Modbus registers
-		MotorRegisters_Save(&motor1, M1_BASE_ADDR);
-		MotorRegisters_Save(&motor2, M2_BASE_ADDR);
+      // 4. Save lại dữ liệu ngược ra Modbus registers
+      MotorRegisters_Save(&motor1, M1_BASE_ADDR);
+      MotorRegisters_Save(&motor2, M2_BASE_ADDR);
 
-		// 5. Delay theo chu kỳ task (ví dụ 10ms)
-		osDelay(10);
-	}
+      // 5. Delay theo chu kỳ task (ví dụ 10ms)
+      osDelay(10);
+  }
 }
 
 /**
