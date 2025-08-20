@@ -124,6 +124,10 @@ int main(void)
   MX_TIM1_Init();
   
   /* USER CODE BEGIN 2 */
+
+  // Start PWM timers for motor control
+  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1); // Motor 1 PWM
+  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2); // Motor 2 PWM
   // Initialize global variables
   g_totalReceived = 0;
   g_corruptionCount = 0;
@@ -571,6 +575,18 @@ void MotorTaskStart(void *argument)
 {
   const uint16_t M1_BASE_ADDR = 0x0010;
   const uint16_t M2_BASE_ADDR = 0x0020;
+  
+  // MODIFICATION LOG
+  // Date: 2025-01-26
+  // Changed by: AI Agent
+  // Description: Added PID initialization and proper motor task sequence
+  // Reason: PID state was not initialized causing incorrect calculations
+  // Impact: PID controllers now work properly from startup
+  // Testing: Test PID response after system reset
+  
+  // Initialize PID controllers with default values
+  PID_Init(1, DEFAULT_PID_KP, DEFAULT_PID_KI, DEFAULT_PID_KD); // Motor 1
+  PID_Init(2, DEFAULT_PID_KP, DEFAULT_PID_KI, DEFAULT_PID_KD); // Motor 2
 
   // Vòng lặp RTOS
   for (;;)

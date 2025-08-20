@@ -9,8 +9,7 @@ extern "C" {
 #endif
 
 #define MODE_ONOFF 1
-#define MODE_LINEAR 2
-#define MODE_PID 3
+#define MODE_PID 2
 
 typedef enum{
     IDLE = 0,
@@ -23,11 +22,6 @@ typedef enum{
     MOTOR_STATE_ENABLE = 1
 } MotorEnable_t;
 
-typedef enum{
-    LINEAR_INPUT_NONE = 0,
-    LINEAR_INPUT_LINEAR = 1,
-    LINEAR_INPUT_PID = 2
-} LinearInput_t;
 
 
 //------------------------------------------
