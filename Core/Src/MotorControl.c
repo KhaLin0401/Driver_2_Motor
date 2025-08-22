@@ -191,7 +191,7 @@ void Motor_Set_PID_Kd(MotorRegisterMap_t* motor, uint8_t kd){
 uint8_t Motor_HandleOnOff(MotorRegisterMap_t* motor) {
     uint8_t duty = 0;
     
-    if(motor->Enable == 1) {
+    if(motor->Enable == 1 && motor->Direction != IDLE) {
         motor->Status_Word = 0x0001;
         g_holdingRegisters[REG_M1_STATUS_WORD] = 0x0001;
         // Xuất PWM theo tốc độ đặt
@@ -250,7 +250,7 @@ uint8_t Motor_HandlePID(MotorRegisterMap_t* motor) {
     PIDState_t* pid_state = (motor_id == 1) ? &pid_state1 : &pid_state2;
 
     // Check enable & mode
-    if (motor->Enable == 0 || motor->Control_Mode != CONTROL_MODE_PID) {
+    if (motor->Enable == 0 || motor->Control_Mode != CONTROL_MODE_PID || motor->Direction == IDLE) {
         // Reset PID state
         pid_state->integral = 0.0f;
         pid_state->last_error = 0.0f;
@@ -275,19 +275,19 @@ uint8_t Motor_HandlePID(MotorRegisterMap_t* motor) {
     //motor->Actual_Speed = getActualSpeed(motor_id);
     
     // Set motor direction based on command
-    if (motor->Command_Speed > 0) {
-        if (motor_id == 1) {
-            Motor1_Set_Direction(motor->Direction != DIRECTION_IDLE ? motor->Direction : DIRECTION_FORWARD);
-        } else {
-            Motor2_Set_Direction(motor->Direction != DIRECTION_IDLE ? motor->Direction : DIRECTION_FORWARD);
-        }
-    } else {
-        if (motor_id == 1) {
-            Motor1_Set_Direction(DIRECTION_IDLE);
-        } else {
-            Motor2_Set_Direction(DIRECTION_IDLE);
-        }
-    }
+    // if (motor->Command_Speed > 0) {
+    //     if (motor_id == 1) {
+    //         Motor1_Set_Direction(motor->Direction != DIRECTION_IDLE ? motor->Direction : DIRECTION_FORWARD);
+    //     } else {
+    //         Motor2_Set_Direction(motor->Direction != DIRECTION_IDLE ? motor->Direction : DIRECTION_FORWARD);
+    //     }
+    // } else {
+    //     if (motor_id == 1) {
+    //         Motor1_Set_Direction(DIRECTION_IDLE);
+    //     } else {
+    //         Motor2_Set_Direction(DIRECTION_IDLE);
+    //     }
+    // }
 
     // Update acceleration limit from motor settings
     pid_state->acceleration_limit = (float)motor->Max_Acc;
@@ -321,8 +321,12 @@ void Motor1_OutputPWM(MotorRegisterMap_t* motor, uint8_t duty_percent){
     uint32_t arr = __HAL_TIM_GET_AUTORELOAD(&htim1);
     uint32_t ccr = duty_percent * arr / 100;
     if(motor->Direction == FORWARD){
+        HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_3);
+        HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
         __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, ccr);
     }else if(motor->Direction == REVERSE){
+        HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1);
+        HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);
         __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, ccr);
     }
 }
@@ -331,12 +335,15 @@ void Motor2_OutputPWM(MotorRegisterMap_t* motor, uint8_t duty_percent){
     // Chuyển % thành giá trị phù hợp với Timer (0 - TIM_ARR)
     uint32_t arr = __HAL_TIM_GET_AUTORELOAD(&htim3);
     uint32_t ccr = duty_percent * arr / 100;
+
     if(motor->Direction == FORWARD){
+        HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_2);
+        HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
         __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, ccr);
-        motor->Actual_Speed = duty_percent; // Update actual speed based on PWM output
     }else if(motor->Direction == REVERSE){
+        HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_1);
+        HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
         __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, ccr);
-        motor->Actual_Speed = duty_percent; // Update actual speed based on PWM output
     }
 }
 

@@ -19,9 +19,9 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
+#include "MotorControl.h"
 #include "UartModbus.h"
 #include "ModbusMap.h"
-#include "MotorControl.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <string.h>
@@ -132,10 +132,9 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   // Start PWM timers for motor control
-  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1); // Motor 1 PWM
-  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
-  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
-  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);
+  // HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1); // Motor 1 PWM
+  // HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);
+  //HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
   // Initialize global variables
   g_totalReceived = 0;
   g_corruptionCount = 0;
