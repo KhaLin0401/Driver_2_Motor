@@ -32,7 +32,6 @@
 | 0x001B  | M1_Max_Deceleration     | uint8   | R/W | Maximum deceleration rate                    | 4       |             |
 | 0x001C  | M1_Status_Word          | uint8   | R   | Motor status flags                           | 0x0000  |             |
 | 0x001D  | M1_Error_Code           | uint8   | R   | Error code if any                            | 0       |             |
-| 0x001E  | M1_EmergencyStop           | uint8   | R   | Emergency stop flag                             | 0       |             |
 
 ---
 
@@ -54,7 +53,6 @@
 | 0x002B  | M2_Max_Deceleration     | uint8   | R/W | Maximum deceleration rate                    | 4       |             |
 | 0x002C  | M2_Status_Word          | uint8   | R   | Motor status flags                           | 0x0000  |             |
 | 0x002D  | M2_Error_Code           | uint8   | R   | Error code if any                            | 0       |             |
-| 0x002E  | M2_EmergencyStop           | uint8   | R   | Emergency stop flag                             | 0       |             |
 
 ---
 
