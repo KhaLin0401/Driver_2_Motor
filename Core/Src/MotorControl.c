@@ -303,7 +303,7 @@ uint8_t Motor_HandlePID(MotorRegisterMap_t* motor) {
     // Clamp duty to max/min speed limits
     if (duty > motor->Max_Speed) duty = motor->Max_Speed;
     if (duty < motor->Min_Speed && duty > 0) duty = motor->Min_Speed;
-    
+    duty = duty * 0.98;
     // Update motor outputs
     if (motor_id == 1) {
         Motor1_OutputPWM(motor, duty);

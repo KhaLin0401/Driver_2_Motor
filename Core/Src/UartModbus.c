@@ -39,23 +39,16 @@ void initializeModbusRegisters(void) {
     // Initialize all registers to default values
     
     // System Registers (0x00F0-0x00F6)
-    g_holdingRegisters[REG_DEVICE_ID] = DEFAULT_DEVICE_ID;
-    g_holdingRegisters[REG_FIRMWARE_VERSION] = DEFAULT_FIRMWARE_VERSION;
-    g_holdingRegisters[REG_SYSTEM_STATUS] = DEFAULT_SYSTEM_STATUS;
-    g_holdingRegisters[REG_SYSTEM_ERROR] = DEFAULT_SYSTEM_ERROR;
-    g_holdingRegisters[REG_RESET_ERROR_COMMAND] = 0;
+    g_holdingRegisters[REG_DEVICE_ID] = DEFAULT_DEVICE_ID;  
     g_holdingRegisters[REG_CONFIG_BAUDRATE] = DEFAULT_CONFIG_BAUDRATE;
     g_holdingRegisters[REG_CONFIG_PARITY] = DEFAULT_CONFIG_PARITY;
-
+    g_holdingRegisters[REG_CONFIG_STOP_BIT] = DEFAULT_CONFIG_STOP_BIT;
     g_holdingRegisters[REG_MODULE_TYPE] = DEFAULT_MODULE_TYPE;
-    g_holdingRegisters[REG_MODULE_NAME_LOW] = DEFAULT_MODULE_NAME_LOW;
-    g_holdingRegisters[REG_MODULE_NAME_HIGH] = DEFAULT_MODULE_NAME_HIGH;
+    g_holdingRegisters[REG_FIRMWARE_VERSION] = DEFAULT_FIRMWARE_VERSION;
     g_holdingRegisters[REG_HARDWARE_VERSION] = DEFAULT_HARDWARE_VERSION;
-    g_holdingRegisters[REG_SERIAL_NUMBER_LOW] = DEFAULT_SERIAL_NUMBER_LOW;
-    g_holdingRegisters[REG_SERIAL_NUMBER_HIGH] = DEFAULT_SERIAL_NUMBER_HIGH;
-    g_holdingRegisters[REG_BUILD_DATE_LOW] = DEFAULT_BUILD_DATE_LOW;
-    g_holdingRegisters[REG_BUILD_DATE_HIGH] = DEFAULT_BUILD_DATE_HIGH;
-    g_holdingRegisters[REG_CHECKSUM] = DEFAULT_CHECKSUM;
+    g_holdingRegisters[REG_SYSTEM_STATUS] = DEFAULT_SYSTEM_STATUS;
+    g_holdingRegisters[REG_SYSTEM_ERROR] = DEFAULT_SYSTEM_ERROR;
+    g_holdingRegisters[REG_RESET_ERROR_COMMAND] = DEFAULT_RESET_ERROR_COMMAND;
     
     // Motor 1 Registers (0x0000-0x000C)
     g_holdingRegisters[REG_M1_CONTROL_MODE] = DEFAULT_CONTROL_MODE;
@@ -95,7 +88,7 @@ void initializeModbusRegisters(void) {
     g_holdingRegisters[REG_DI2_ASSIGNMENT] = 0;
     g_holdingRegisters[REG_DI3_ASSIGNMENT] = 0;
     g_holdingRegisters[REG_DI4_ASSIGNMENT] = 0;
-    
+    g_holdingRegisters[REG_CURRENT] = DEFAULT_CURRENT;
     // Output Registers (0x0040-0x0044)  
     g_holdingRegisters[REG_DO_STATUS_WORD] = 0;
     g_holdingRegisters[REG_DO1_CONTROL] = 0;

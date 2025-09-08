@@ -5,22 +5,16 @@
 
 // System Registers (Base Address: 0x0000)
 #define REG_DEVICE_ID              0x0100
-#define REG_FIRMWARE_VERSION       0x0101
-#define REG_SYSTEM_STATUS          0x0102
-#define REG_SYSTEM_ERROR           0x0103
-#define REG_RESET_ERROR_COMMAND    0x0104
-#define REG_CONFIG_BAUDRATE        0x0105
-#define REG_CONFIG_PARITY          0x0106
+#define REG_CONFIG_BAUDRATE        0x0101
+#define REG_CONFIG_PARITY          0x0102
+#define REG_CONFIG_STOP_BIT        0x0103
+#define REG_MODULE_TYPE            0x0104
+#define REG_FIRMWARE_VERSION       0x0105
+#define REG_HARDWARE_VERSION       0x0106
+#define REG_SYSTEM_STATUS          0x0107
+#define REG_SYSTEM_ERROR           0x0108
+#define REG_RESET_ERROR_COMMAND    0x0109
 
-#define REG_MODULE_TYPE            0x00F7
-#define REG_MODULE_NAME_LOW        0x00F8
-#define REG_MODULE_NAME_HIGH       0x00F9
-#define REG_HARDWARE_VERSION       0x00FA
-#define REG_SERIAL_NUMBER_LOW      0x00FB
-#define REG_SERIAL_NUMBER_HIGH     0x00FC
-#define REG_BUILD_DATE_LOW         0x00FD
-#define REG_BUILD_DATE_HIGH        0x00FE
-#define REG_CHECKSUM               0x00FF
 
 // Motor 1 Registers (Base Address: 0x0010)
 #define REG_M1_CONTROL_MODE        0x0000
@@ -60,6 +54,7 @@
 #define REG_DI2_ASSIGNMENT         0x0022
 #define REG_DI3_ASSIGNMENT         0x0023
 #define REG_DI4_ASSIGNMENT         0x0024
+#define REG_CURRENT                0x0025
 
 // Digital Output Registers (Base Address: 0x0040)
 #define REG_DO_STATUS_WORD         0x0030
@@ -73,21 +68,16 @@
 
 // Default Values for System Registers
 #define DEFAULT_DEVICE_ID          3
-#define DEFAULT_FIRMWARE_VERSION   0x0101
+#define DEFAULT_CONFIG_BAUDRATE    5
+#define DEFAULT_CONFIG_PARITY      0
+#define DEFAULT_CONFIG_STOP_BIT    1
+#define DEFAULT_MODULE_TYPE        4
+#define DEFAULT_FIRMWARE_VERSION   0x0001
+#define DEFAULT_HARDWARE_VERSION   0x0001
 #define DEFAULT_SYSTEM_STATUS      0x0000
 #define DEFAULT_SYSTEM_ERROR       0
-#define DEFAULT_CONFIG_BAUDRATE    1
-#define DEFAULT_CONFIG_PARITY      0
+#define DEFAULT_RESET_ERROR_COMMAND 0
 
-#define DEFAULT_MODULE_TYPE      4
-#define DEFAULT_MODULE_NAME_LOW  0
-#define DEFAULT_MODULE_NAME_HIGH 0
-#define DEFAULT_HARDWARE_VERSION 0
-#define DEFAULT_SERIAL_NUMBER_LOW 0
-#define DEFAULT_SERIAL_NUMBER_HIGH 0
-#define DEFAULT_BUILD_DATE_LOW 0
-#define DEFAULT_BUILD_DATE_HIGH 0
-#define DEFAULT_CHECKSUM 0
 
 // Default Values for Motor Registers
 #define DEFAULT_CONTROL_MODE       1       // ONOFF mode
@@ -97,13 +87,14 @@
 #define DEFAULT_DIRECTION          0       // Idle
 #define DEFAULT_MAX_SPEED          100
 #define DEFAULT_MIN_SPEED          0
-#define DEFAULT_PID_KP            100      // ×100
-#define DEFAULT_PID_KI            10       // ×100
-#define DEFAULT_PID_KD            5        // ×100
+#define DEFAULT_PID_KP             100      // ×100
+#define DEFAULT_PID_KI             10       // ×100
+#define DEFAULT_PID_KD             5        // ×100
 #define DEFAULT_MAX_ACCELERATION   5
 #define DEFAULT_MAX_DECELERATION   4
 #define DEFAULT_STATUS_WORD        0x0000
 #define DEFAULT_ERROR_CODE         0
+#define DEFAULT_CURRENT            0
 
 // Control Mode Values
 #define CONTROL_MODE_ONOFF        1

@@ -666,6 +666,7 @@ void StartIOTask(void *argument)
     // Update input registers periodically (simulate sensor data)
     g_inputRegisters[0] = g_taskCounter;
     g_inputRegisters[1] = HAL_GetTick() & 0xFFFF;
+    Read_ACS712();
     
     osDelay(1000); // 1 second delay
   }

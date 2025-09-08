@@ -1,6 +1,6 @@
 # 📘 Modbus Register Map – Dual DC Motor Driver (STM32F103C8T6)
 
-## 🟣 System Registers (Base Address: 0x0000)
+## 🟣 System Registers
 
 | Address | Name                    | Type     | R/W | Description                                  | Default |
 |---------|-------------------------|----------|-----|----------------------------------------------|---------|
@@ -62,21 +62,24 @@
 
 ## 🟢 Digital Input Registers (Base Address: 0x0030)
 
-|Address|Name|Type|R/W|Description|Default|Range|
-|---------|-------------------------|----------|-----|----------------------------------------------|---------|------------|
-|0x0020|DI_Status_Word|uint16|R|"Bitfield for 4 digital inputs (bit 0: DI1, bit 1: DI2, bit 2: DI3, bit 3: DI4; 1=active)"|0x0000|0–0x000F|
-|0x0021|DI1_Assignment|uint8|R/W|"Function assignment for DI1 (0=none, 1=start M1, 2=stop M1, 3=reverse M1, 4=fault reset, 5=mode switch)"|0|0–10|
-|0x0022|DI2_Assignment|uint8|R/W|Function assignment for DI2 (same options as DI1)|0|0–10|
-|0x0023|DI3_Assignment|uint8|R/W|Function assignment for DI3 (same options as DI1)|0|0–10|
-|0x0024|DI4_Assignment|uint8|R/W|Function assignment for DI4 (same options as DI1)|0|0–10|
-
+| Address | Name            | Type   | R/W | Description                                                                                                          | Default | Range    |
+|---------|----------------|--------|-----|----------------------------------------------------------------------------------------------------------------------|---------|----------|
+| 0x0020  | DI_Status_Word | uint16 | R   | Bitfield for 4 digital inputs (bit 0: DI1, bit 1: DI2, bit 2: DI3, bit 3: DI4; 1=active)                           | 0x0000  | 0–0x000F |
+| 0x0021  | DI1_Assignment | uint8  | R/W | Function assignment for DI1 (0=none, 1=start M1, 2=stop M1, 3=reverse M1, 4=fault reset, 5=mode switch)             | 0       | 0–10     |
+| 0x0022  | DI2_Assignment | uint8  | R/W | Function assignment for DI2 (same options as DI1)                                                                     | 0       | 0–10     |
+| 0x0023  | DI3_Assignment | uint8  | R/W | Function assignment for DI3 (same options as DI1)                                                                     | 0       | 0–10     |
+| 0x0024  | DI4_Assignment | uint8  | R/W | Function assignment for DI4 (same options as DI1)                                                                     | 0       | 0–10     |
+| 0x0025  | CURRENT   | uint8 | R | Current of module (scale 100) | 0 | |
 ---
+
 ## 🟢 Digital Output Registers (Base Address: 0x0040)
-| Address | Name                    | Type     | R/W | Description                                  | Default |    Range   |
-|---------|-------------------------|----------|-----|----------------------------------------------|---------|------------|
-|0x0030|DO_Status_Word|uint16|R|"Bitfield for 2 digital outputs (bit 0: DO1, bit 1: DO2; 1=active)"|0x0000|0–0x0003|
-|0x0031|DO1_Control|uint8|R/W|"Control DO1 (0=off, 1=on)"|0|0–1|
-|0x0032|DO1_Assignment|uint8|R/W|"Function assignment for DO1 (0=none, 1=running M1, 2=fault M1, 3=speed reached M1, 4=ready)"|0|0–10|
-|0x0033|DO2_Control|uint8|R/W|"Control DO2 (0=off, 1=on)"|0|0–1|
-|0x0034|DO2_Assignment|uint8|R/W|Function assignment for DO2 (same options as DO1)|0|0–10|
+
+| Address | Name            | Type   | R/W | Description                                                                                | Default | Range    |
+|---------|----------------|--------|-----|--------------------------------------------------------------------------------------------|---------|----------|
+| 0x0030  | DO_Status_Word | uint16 | R   | Bitfield for 2 digital outputs (bit 0: DO1, bit 1: DO2; 1=active)                         | 0x0000  | 0–0x0003 |
+| 0x0031  | DO1_Control    | uint8  | R/W | Control DO1 (0=off, 1=on)                                                                  | 0       | 0–1      |
+| 0x0032  | DO1_Assignment | uint8  | R/W | Function assignment for DO1 (0=none, 1=running M1, 2=fault M1, 3=speed reached M1, 4=ready)| 0       | 0–10     |
+| 0x0033  | DO2_Control    | uint8  | R/W | Control DO2 (0=off, 1=on)                                                                  | 0       | 0–1      |
+| 0x0034  | DO2_Assignment | uint8  | R/W | Function assignment for DO2 (same options as DO1)                                          | 0       | 0–10     |
+
 ---

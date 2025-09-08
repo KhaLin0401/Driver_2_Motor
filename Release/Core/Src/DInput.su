@@ -1,0 +1,2 @@
+../Core/Src/DInput.c:7:10:Read_ADC_Value	16	static
+../Core/Src/DInput.c:16:10:Read_ACS712	24	static

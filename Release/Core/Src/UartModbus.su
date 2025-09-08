@@ -1,9 +1,9 @@
 ../Core/Src/UartModbus.c:38:6:initializeModbusRegisters	16	static
-../Core/Src/UartModbus.c:120:6:updateSystemStatus	12	static
-../Core/Src/UartModbus.c:145:6:updateMotorStatus	0	static
-../Core/Src/UartModbus.c:179:6:updateDigitalIOStatus	8	static
-../Core/Src/UartModbus.c:213:10:calcCRC	16	static
-../Core/Src/UartModbus.c:261:6:HAL_UART_ErrorCallback	8	static
-../Core/Src/UartModbus.c:271:6:resetUARTCommunication	8	static
-../Core/Src/UartModbus.c:278:6:processModbusFrame	280	static
-../Core/Src/UartModbus.c:229:6:HAL_UART_RxCpltCallback	16	static
+../Core/Src/UartModbus.c:113:6:updateSystemStatus	12	static
+../Core/Src/UartModbus.c:138:6:updateMotorStatus	0	static
+../Core/Src/UartModbus.c:172:6:updateDigitalIOStatus	8	static
+../Core/Src/UartModbus.c:206:10:calcCRC	16	static
+../Core/Src/UartModbus.c:254:6:HAL_UART_ErrorCallback	8	static
+../Core/Src/UartModbus.c:264:6:resetUARTCommunication	8	static
+../Core/Src/UartModbus.c:271:6:processModbusFrame	280	static
+../Core/Src/UartModbus.c:222:6:HAL_UART_RxCpltCallback	16	static
