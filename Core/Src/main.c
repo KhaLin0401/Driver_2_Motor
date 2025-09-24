@@ -718,8 +718,7 @@ void StartMotorTask(void *argument)
   const uint16_t M1_BASE_ADDR = 0x0000;
   const uint16_t M2_BASE_ADDR = 0x0010;
   // Initialize PID controllers with default values
-  PID_Init(1, DEFAULT_PID_KP, DEFAULT_PID_KI, DEFAULT_PID_KD); // Motor 1
-  PID_Init(2, DEFAULT_PID_KP, DEFAULT_PID_KI, DEFAULT_PID_KD); // Motor 2
+
 
   // Vòng lặp RTOS
   for (;;)
