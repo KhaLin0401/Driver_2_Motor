@@ -153,28 +153,25 @@ int main(void)
   g_receivedIndex = 0;
   
   // Initialize Modbus registers
-  // for (int i = 0; i < HOLDING_REG_COUNT; i++) {
-  //   g_holdingRegisters[i] = 0;
-  // }
   initializeModbusRegisters();
-  // Set some default values for important registers
   
-  // Initialize UART buffer
+  // Khởi tạo buffer (KHÔNG bật UART IT trước khi RTOS start)
   memset(rxBuffer, 0, RX_BUFFER_SIZE);
   rxIndex = 0;
   frameReceived = 0;
-  g_lastUARTActivity = HAL_GetTick();
-  
-  // Start UART reception
-  HAL_UART_Receive_IT(&huart2, &rxBuffer[0], 1);
   /* USER CODE END 2 */
 
   /* Init scheduler */
   osKernelInitialize();
 
-  HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_SET);
+
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
+  // Tạo mutex để bảo vệ UART TX
+  const osMutexAttr_t modbusTxMutex_attributes = {
+    .name = "modbusTxMutex"
+  };
+  modbusTxMutex = osMutexNew(&modbusTxMutex_attributes);
   /* USER CODE END RTOS_MUTEX */
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
@@ -212,7 +209,7 @@ int main(void)
 
   /* Start scheduler */
   osKernelStart();
-  HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, GPIO_PIN_RESET);
 
   /* We should never get here as control is now taken by the scheduler */
 
@@ -592,11 +589,11 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, LED4_Pin|LED3_Pin|LED2_Pin, GPIO_PIN_RESET);
+  // /*Configure GPIO pin Output Level */
+  // HAL_GPIO_WritePin(GPIOC, LED4_Pin|LED3_Pin|LED2_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, LED1_Pin|DIR_1_Pin|DIR_3_Pin, GPIO_PIN_RESET);
+  // /*Configure GPIO pin Output Level */
+  // HAL_GPIO_WritePin(GPIOA, LED1_Pin|DIR_1_Pin|DIR_3_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, DIR_2_Pin|DIR_4_Pin|OUT2_Pin|OUT1_Pin, GPIO_PIN_RESET);
@@ -657,10 +654,6 @@ void StartIOTask(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    // Heartbeat LED toggle
-    //HAL_GPIO_TogglePin(LED3_GPIO_Port, LED3_Pin);
-    
-    // Update task counter
     g_taskCounter++;
     
     // Update input registers periodically (simulate sensor data)
@@ -668,7 +661,7 @@ void StartIOTask(void *argument)
     g_inputRegisters[1] = HAL_GetTick() & 0xFFFF;
     Read_ACS712();
     
-    osDelay(1000); // 1 second delay
+    osDelay(1); // 1 second delay
   }
   /* USER CODE END 5 */
 }
@@ -683,27 +676,40 @@ void StartIOTask(void *argument)
 void StartUartTask(void *argument)
 {
   /* USER CODE BEGIN StartUartTask */
+  
+  // Bật UART IT TRƯỚC KHI tính toán
+  startModbusUARTReception();
+  
+  // Tính toán thời gian timeout dựa trên baudrate
+  uint32_t charTime = (11 * 1000) / huart2.Init.BaudRate; // 11 bit per char (8N1 + start/stop)
+  uint32_t frameTimeout = charTime * 4; // 3.5 char time for Modbus RTU
+  if (frameTimeout < 5) frameTimeout = 5; // Tối thiểu 5ms
+  
   /* Infinite loop */
-  for(;;)
-  {
-    // Update Modbus counter
+  for(;;) {
+
     g_modbusCounter++;
-    
-    // Check for UART timeout (10 seconds)
-    if (HAL_GetTick() - g_lastUARTActivity > 10000) {
-      resetUARTCommunication();
-      g_lastUARTActivity = HAL_GetTick();
-    }
-    
-    // Process Modbus frame if received
+
+    // Xử lý frame đã nhận đủ
     if (frameReceived) {
-      processModbusFrame();
-      
+        processModbusFrame();
     }
     
-    osDelay(100); // 100ms delay
+    // Kiểm tra timeout cho frame chưa hoàn chỉnh
+    // Nếu có dữ liệu trong buffer nhưng chưa đủ frame và đã timeout
+    if (!frameReceived && rxIndex > 0 && (HAL_GetTick() - g_lastUARTActivity > frameTimeout)) {
+        // Frame không hoàn chỉnh và đã timeout - bỏ qua và reset
+        rxIndex = 0;
+        frameReceived = 0;
+        g_corruptionCount++;
+    }
+
+    // Kiểm tra sức khỏe UART định kỳ
+    checkUARTHealth();
+
+    // Delay 1ms
+    osDelay(1);
   }
-  /* USER CODE END StartUartTask */
 }
 
 /* USER CODE BEGIN Header_StartMotorTask */
@@ -754,7 +760,12 @@ void StartVisibleTask(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+    HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin);
+
+    if(frameReceived == 1){
+      HAL_GPIO_TogglePin(LED3_GPIO_Port, LED3_Pin);
+    }
+    osDelay(50);
   }
   /* USER CODE END StartVisibleTask */
 }

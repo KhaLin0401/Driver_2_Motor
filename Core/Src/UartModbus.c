@@ -3,8 +3,20 @@
 #include "stm32f1xx_it.h"
 #include "main.h"
 #include "ModbusMap.h"
+#include "cmsis_os.h"
+#include <string.h>
 
+// Khởi tạo mutex (giữ lại để bảo vệ UART TX)
+osMutexId_t modbusTxMutex;
 
+// Buffer đơn giản cho việc nhận dữ liệu
+uint8_t rxBuffer[RX_BUFFER_SIZE];
+uint8_t rxIndex = 0;
+uint8_t frameReceived = 0;
+uint32_t g_lastUARTActivity = 0;
+
+// Single byte buffer for UART reception
+static uint8_t rxByte = 0;
 
 // Global register arrays definition
 uint16_t g_holdingRegisters[HOLDING_REG_COUNT];
@@ -16,17 +28,17 @@ uint8_t g_discreteInputs[DISCRETE_COUNT];
 uint32_t g_taskCounter = 0;
 uint32_t g_modbusCounter = 0;
 
-// UART buffer variables
-uint8_t rxBuffer[RX_BUFFER_SIZE];
-uint8_t rxIndex = 0;
-uint8_t frameReceived = 0;
-uint32_t g_lastUARTActivity = 0;
-
 // Diagnostic variables
 uint32_t g_totalReceived = 0;
 uint32_t g_corruptionCount = 0;
+uint32_t g_timeoutCount = 0;
+uint32_t g_queueFullCount = 0;
+uint32_t g_lastResetTime = 0;
 uint8_t g_receivedIndex = 0;
 
+// UART health monitoring variables
+uint32_t last_health_check = 0;
+static uint8_t uart_error_count = 0;
 
 void initializeModbusRegisters(void) {
     // Initialize all registers to default values
@@ -103,99 +115,6 @@ void initializeModbusRegisters(void) {
     }
 }
 
-void updateSystemStatus(void) {
-    // Update system status based on current state
-    uint16_t systemStatus = 0;
-    
-    // Check if motors are running
-    if (g_holdingRegisters[REG_M1_ENABLE] && g_holdingRegisters[REG_M1_ACTUAL_SPEED] > 0) {
-        systemStatus |= 0x0001; // Motor 1 running
-    }
-    if (g_holdingRegisters[REG_M2_ENABLE] && g_holdingRegisters[REG_M2_ACTUAL_SPEED] > 0) {
-        systemStatus |= 0x0002; // Motor 2 running
-    }
-    
-    // Check for errors
-    if (g_holdingRegisters[REG_M1_ERROR_CODE] > 0 || g_holdingRegisters[REG_M2_ERROR_CODE] > 0) {
-        systemStatus |= 0x0004; // Error present
-    }
-    
-    // Check if system is ready
-    if (g_holdingRegisters[REG_M1_ENABLE] == 0 && g_holdingRegisters[REG_M2_ENABLE] == 0) {
-        systemStatus |= 0x0008; // System ready
-    }
-    
-    g_holdingRegisters[REG_SYSTEM_STATUS] = systemStatus;
-}
-
-void updateMotorStatus(void) {
-    // Update Motor 1 status word
-    uint16_t m1Status = 0;
-    if (g_holdingRegisters[REG_M1_ENABLE]) {
-        m1Status |= 0x0001; // Enabled
-        if (g_holdingRegisters[REG_M1_ACTUAL_SPEED] > 0) {
-            m1Status |= 0x0002; // Running
-        }
-        if (g_holdingRegisters[REG_M1_ACTUAL_SPEED] >= g_holdingRegisters[REG_M1_COMMAND_SPEED]) {
-            m1Status |= 0x0004; // Speed reached
-        }
-    }
-    if (g_holdingRegisters[REG_M1_ERROR_CODE] > 0) {
-        m1Status |= 0x0008; // Error
-    }
-    g_holdingRegisters[REG_M1_STATUS_WORD] = m1Status;
-    
-    // Update Motor 2 status word
-    uint16_t m2Status = 0;
-    if (g_holdingRegisters[REG_M2_ENABLE]) {
-        m2Status |= 0x0001; // Enabled
-        if (g_holdingRegisters[REG_M2_ACTUAL_SPEED] > 0) {
-            m2Status |= 0x0002; // Running
-        }
-        if (g_holdingRegisters[REG_M2_ACTUAL_SPEED] >= g_holdingRegisters[REG_M2_COMMAND_SPEED]) {
-            m2Status |= 0x0004; // Speed reached
-        }
-    }
-    if (g_holdingRegisters[REG_M2_ERROR_CODE] > 0) {
-        m2Status |= 0x0008; // Error
-    }
-    g_holdingRegisters[REG_M2_STATUS_WORD] = m2Status;
-}
-
-void updateDigitalIOStatus(void) {
-    // Update digital input status word based on discrete inputs
-    uint16_t diStatus = 0;
-    for (int i = 0; i < DISCRETE_COUNT; i++) {
-        if (g_discreteInputs[i]) {
-            diStatus |= (1 << i);
-        }
-    }
-    g_holdingRegisters[REG_DI_STATUS_WORD] = diStatus;
-    
-    // Update digital output status word based on coils
-    uint16_t doStatus = 0;
-    for (int i = 0; i < 2; i++) { // Only 2 digital outputs
-        if (g_coils[i]) {
-            doStatus |= (1 << i);
-        }
-    }
-    g_holdingRegisters[REG_DO_STATUS_WORD] = doStatus;
-}
-
-static void MX_USART2_UART_Init(void) {
-    huart2.Instance = USART2;
-    huart2.Init.BaudRate = 115200;
-    huart2.Init.WordLength = UART_WORDLENGTH_8B;
-    huart2.Init.StopBits = UART_STOPBITS_1;
-    huart2.Init.Parity = UART_PARITY_NONE;
-    huart2.Init.Mode = UART_MODE_TX_RX;
-    huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-    huart2.Init.OverSampling = UART_OVERSAMPLING_16;
-    if (HAL_UART_Init(&huart2) != HAL_OK) {
-        Error_Handler();
-    }
-}
-
 uint16_t calcCRC(uint8_t *buf, int len) {
     uint16_t crc = 0xFFFF;
     for (int pos = 0; pos < len; pos++) {
@@ -217,40 +136,54 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
         g_lastUARTActivity = HAL_GetTick();
         
         if (rxIndex < RX_BUFFER_SIZE - 1) {
-            rxBuffer[rxIndex++] = huart->Instance->DR;
-            frameReceived = 1;
+            // Lưu byte vừa nhận
+            rxBuffer[rxIndex++] = rxByte;
             
-            if (rxIndex >= 6) {
+            // Kiểm tra xem có đủ frame chưa
+            if (rxIndex >= 3) {
+                uint8_t funcCode = rxBuffer[1];
                 uint8_t expectedLength = 0;
-                if (rxBuffer[1] == 3 || rxBuffer[1] == 6) {
-                    expectedLength = 8;
-                } else if (rxBuffer[1] == 4) {
-                    expectedLength = 8;
-                } else if (rxBuffer[1] == 16) {
-                    if (rxIndex >= 7) {
-                        expectedLength = 9 + rxBuffer[6];
-                    }
+                
+                switch(funcCode) {
+                    case 3:  // Read holding registers
+                    case 4:  // Read input registers
+                    case 6:  // Write single register
+                        expectedLength = 8;
+                        break;
+                    case 16: // Write multiple registers
+                        if (rxIndex >= 7) {
+                            expectedLength = 9 + rxBuffer[6];
+                        }
+                        break;
+                    default:
+                        // Function code không hợp lệ - reset
+                        rxIndex = 0;
+                        frameReceived = 0;
+                        break;
                 }
                 
-                if (rxIndex >= expectedLength) {
-                    processModbusFrame();
+                // Nếu đã nhận đủ frame theo expectedLength
+                if (expectedLength > 0 && rxIndex >= expectedLength) {
+                    frameReceived = 1;
                 }
             }
         } else {
+            // Buffer overflow - reset
             rxIndex = 0;
             frameReceived = 0;
         }
-        HAL_UART_Receive_IT(&huart2, &rxBuffer[rxIndex], 1);
+        
+        // Tiếp tục nhận byte tiếp theo
+        HAL_UART_Receive_IT(&huart2, &rxByte, 1);
     }
 }
 
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart) {
     if (huart->Instance == USART2) {
-        HAL_GPIO_TogglePin(LED4_GPIO_Port, LED4_Pin);
         rxIndex = 0;
         frameReceived = 0;
         HAL_UART_Abort(&huart2);
-        HAL_UART_Receive_IT(&huart2, &rxBuffer[rxIndex], 1);
+        HAL_UART_Receive_IT(&huart2, &rxByte, 1);
     }
 }
 
@@ -258,16 +191,22 @@ void resetUARTCommunication(void) {
     HAL_UART_Abort(&huart2);
     rxIndex = 0;
     frameReceived = 0;
-    HAL_UART_Receive_IT(&huart2, &rxBuffer[0], 1);
+    HAL_UART_Receive_IT(&huart2, &rxByte, 1);
 }
 
 void processModbusFrame(void) {
     if (rxIndex < 6) return;
-    if (rxBuffer[0] != MODBUS_SLAVE_ADDRESS) return;
+    if (rxBuffer[0] != MODBUS_SLAVE_ADDRESS) {
+        rxIndex = 0;
+        frameReceived = 0;
+        return;
+    }
 
     uint16_t crc = calcCRC(rxBuffer, rxIndex - 2);
     if (rxBuffer[rxIndex - 2] != (crc & 0xFF) || rxBuffer[rxIndex - 1] != (crc >> 8)) {
-        HAL_GPIO_TogglePin(LED4_GPIO_Port, LED4_Pin);
+        rxIndex = 0;
+        frameReceived = 0;
+        g_corruptionCount++;
         return;
     }
 
@@ -313,10 +252,7 @@ void processModbusFrame(void) {
         if (addr < HOLDING_REG_COUNT) {
             g_holdingRegisters[addr] = value;
             
-            // Handle special register writes
             if (addr == REG_RESET_ERROR_COMMAND && value == 1) {
-                g_holdingRegisters[REG_M1_ERROR_CODE] = 0;
-                g_holdingRegisters[REG_M2_ERROR_CODE] = 0;
                 g_holdingRegisters[REG_SYSTEM_ERROR] = 0;
             }
             
@@ -358,13 +294,18 @@ void processModbusFrame(void) {
     txBuffer[txIndex++] = crc & 0xFF;
     txBuffer[txIndex++] = crc >> 8;
     
-    if (HAL_UART_Transmit(&huart2, txBuffer, txIndex, 100) != HAL_OK) {
-        HAL_GPIO_TogglePin(LED4_GPIO_Port, LED4_Pin);
-        HAL_UART_Abort(&huart2);
-    } else {
-        HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin);
+    // Sử dụng mutex để bảo vệ việc truyền dữ liệu
+    if (modbusTxMutex != NULL) {
+        osMutexAcquire(modbusTxMutex, osWaitForever);
     }
     
+    HAL_UART_Transmit(&huart2, txBuffer, txIndex, 100);
+    
+    if (modbusTxMutex != NULL) {
+        osMutexRelease(modbusTxMutex);
+    }
+    
+    // Reset buffer sau khi xử lý
     rxIndex = 0;
     frameReceived = 0;
 }
@@ -372,44 +313,66 @@ void processModbusFrame(void) {
 void updateBaudrate(void) {
     if(current_baudrate == g_holdingRegisters[REG_CONFIG_BAUDRATE])
         return;
-    else {
-        switch(g_holdingRegisters[REG_CONFIG_BAUDRATE]) {
-            case 1:
-                current_baudrate = 1;
-                huart2.Init.BaudRate = 9600;
-                HAL_UART_DeInit(&huart2);
-                HAL_UART_Init(&huart2);
-                break;
-            case 2:
-                current_baudrate = 2;
-                huart2.Init.BaudRate = 19200;
-                HAL_UART_DeInit(&huart2);
-                HAL_UART_Init(&huart2);
-                break;
-            case 3:
-                current_baudrate = 3;
-                huart2.Init.BaudRate = 38400;
-                HAL_UART_DeInit(&huart2);
-                HAL_UART_Init(&huart2);
-                break;
-            case 4:
-                current_baudrate = 4;
-                huart2.Init.BaudRate = 57600;
-                HAL_UART_DeInit(&huart2);
-                HAL_UART_Init(&huart2);
-                break;
-            case 5:
-                current_baudrate = 5;
-                huart2.Init.BaudRate = 115200;
-                HAL_UART_DeInit(&huart2);
-                HAL_UART_Init(&huart2);
-                break;
-            default:
-                current_baudrate = 5;
-                huart2.Init.BaudRate = 115200;
-                HAL_UART_DeInit(&huart2);
-                HAL_UART_Init(&huart2);
-                break;
+    
+    if (modbusTxMutex != NULL) {
+        osMutexAcquire(modbusTxMutex, osWaitForever);
+    }
+    
+    switch(g_holdingRegisters[REG_CONFIG_BAUDRATE]) {
+        case 1:
+            current_baudrate = 1;
+            huart2.Init.BaudRate = 9600;
+            break;
+        case 2:
+            current_baudrate = 2;
+            huart2.Init.BaudRate = 19200;
+            break;
+        case 3:
+            current_baudrate = 3;
+            huart2.Init.BaudRate = 38400;
+            break;
+        case 4:
+            current_baudrate = 4;
+            huart2.Init.BaudRate = 57600;
+            break;
+        case 5:
+            current_baudrate = 5;
+            huart2.Init.BaudRate = 115200;
+            break;
+        default:
+            current_baudrate = 5;
+            huart2.Init.BaudRate = 115200;
+            break;
+    }
+    
+    HAL_UART_DeInit(&huart2);
+    HAL_UART_Init(&huart2);
+    HAL_UART_Receive_IT(&huart2, &rxByte, 1);
+    
+    if (modbusTxMutex != NULL) {
+        osMutexRelease(modbusTxMutex);
+    }
+}
+
+void checkUARTHealth(void) {
+    uint32_t current_time = HAL_GetTick();
+    
+    // Kiểm tra định kỳ
+    if (current_time - last_health_check >= UART_HEALTH_CHECK_INTERVAL) {
+        last_health_check = current_time;
+        
+        // Kiểm tra timeout dài
+        if (current_time - g_lastUARTActivity > 30000) {
+            resetUARTCommunication();
+            g_lastUARTActivity = current_time;
         }
     }
+}
+
+void startModbusUARTReception(void) {
+    // Bắt đầu nhận UART vào rxByte
+    // Gọi hàm này SAU KHI RTOS đã start
+    g_lastUARTActivity = HAL_GetTick();
+    last_health_check = g_lastUARTActivity;
+    HAL_UART_Receive_IT(&huart2, &rxByte, 1);
 }
