@@ -148,18 +148,18 @@ int main(void)
   // HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);
   //HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
   // Initialize global variables
-  g_totalReceived = 0;
-  g_corruptionCount = 0;
-  g_receivedIndex = 0;
+  // g_totalReceived = 0;
+  // g_corruptionCount = 0;
+  // g_receivedIndex = 0;
   
   // Initialize Modbus registers
   initializeModbusRegisters();
   
   // Khởi tạo buffer (KHÔNG bật UART IT trước khi RTOS start)
-  memset(rxBuffer, 0, RX_BUFFER_SIZE);
-  rxIndex = 0;
-  frameReceived = 0;
-  /* USER CODE END 2 */
+  // memset(rxBuffer, 0, RX_BUFFER_SIZE);
+  // rxIndex = 0;
+  // frameReceived = 0;
+  // /* USER CODE END 2 */
 
   /* Init scheduler */
   osKernelInitialize();
@@ -651,7 +651,7 @@ static void MX_GPIO_Init(void)
 void StartIOTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
-  /* Infinite loop */
+  uint32_t previousTick = osKernelGetTickCount();
   for(;;)
   {
     g_taskCounter++;
@@ -661,7 +661,7 @@ void StartIOTask(void *argument)
     g_inputRegisters[1] = HAL_GetTick() & 0xFFFF;
     Read_ACS712();
     
-    osDelay(1); // 1 second delay
+    osDelayUntil(previousTick += 500); // 1 second delay
   }
   /* USER CODE END 5 */
 }
@@ -683,6 +683,7 @@ void StartUartTask(void *argument)
   // Tính toán thời gian timeout dựa trên baudrate
   uint32_t charTime = (11 * 1000) / huart2.Init.BaudRate; // 11 bit per char (8N1 + start/stop)
   uint32_t frameTimeout = charTime * 4; // 3.5 char time for Modbus RTU
+  uint32_t previousTick = osKernelGetTickCount();
   if (frameTimeout < 5) frameTimeout = 5; // Tối thiểu 5ms
   
   /* Infinite loop */
@@ -708,7 +709,7 @@ void StartUartTask(void *argument)
     checkUARTHealth();
 
     // Delay 1ms
-    osDelay(1);
+    osDelayUntil(previousTick += 10);
   }
 }
 
@@ -723,6 +724,8 @@ void StartMotorTask(void *argument)
 {
   const uint16_t M1_BASE_ADDR = 0x0000;
   const uint16_t M2_BASE_ADDR = 0x0010;
+  const uint16_t SYS_BASE_ADDR = 0x0100;
+  uint32_t previousTick = osKernelGetTickCount();
   // Initialize PID controllers with default values
 
 
@@ -732,6 +735,7 @@ void StartMotorTask(void *argument)
       // 1. Load dữ liệu từ Modbus registers
       MotorRegisters_Load(&motor1, M1_BASE_ADDR);
       MotorRegisters_Load(&motor2, M2_BASE_ADDR);
+      SystemRegisters_Load(&system, SYS_BASE_ADDR);
       updateBaudrate();
       // 2. Xử lý logic điều khiển motor 1
       Motor_ProcessControl(&motor1);
@@ -742,9 +746,10 @@ void StartMotorTask(void *argument)
       // 4. Save lại dữ liệu ngược ra Modbus registers
       MotorRegisters_Save(&motor1, M1_BASE_ADDR);
       MotorRegisters_Save(&motor2, M2_BASE_ADDR);
+      SystemRegisters_Save(&system, SYS_BASE_ADDR);
 
       // 5. Delay theo chu kỳ task (ví dụ 10ms)
-      osDelay(10);
+      osDelayUntil(previousTick += 30);
   }
 }
 /* USER CODE BEGIN Header_StartVisibleTask */
@@ -757,15 +762,17 @@ void StartMotorTask(void *argument)
 void StartVisibleTask(void *argument)
 {
   /* USER CODE BEGIN StartVisibleTask */
-  /* Infinite loop */
+  uint32_t previousTick = osKernelGetTickCount();
   for(;;)
   {
     HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin);
 
-    if(frameReceived == 1){
+    if(g_ledIndicator == 1)
+    {
       HAL_GPIO_TogglePin(LED3_GPIO_Port, LED3_Pin);
+      g_ledIndicator = 0;  // Reset sau khi nháy
     }
-    osDelay(50);
+    osDelayUntil(previousTick += 250);
   }
   /* USER CODE END StartVisibleTask */
 }

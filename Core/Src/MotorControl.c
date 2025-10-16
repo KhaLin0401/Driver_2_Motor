@@ -83,13 +83,13 @@ void MotorRegisters_Save(MotorRegisterMap_t* motor, uint16_t base_addr){
     g_holdingRegisters[base_addr + 0x0D] = motor->Error_Code;
 }
 void SystemRegisters_Save(SystemRegisterMap_t* sys, uint16_t base_addr){
-    g_holdingRegisters[base_addr + 0] = sys->Device_ID;
-    g_holdingRegisters[base_addr + 1] = sys->Firmware_Version;
-    g_holdingRegisters[base_addr + 2] = sys->System_Status;
-    g_holdingRegisters[base_addr + 3] = sys->System_Error;
-    g_holdingRegisters[base_addr + 4] = sys->Reset_Error_Command;
-    g_holdingRegisters[base_addr + 5] = sys->Config_Baudrate;
-    g_holdingRegisters[base_addr + 6] = sys->Config_Parity;
+    g_holdingRegisters[base_addr + 0x00] = sys->Device_ID;
+    g_holdingRegisters[base_addr + 0x01] = sys->Firmware_Version;
+    g_holdingRegisters[base_addr + 0x02] = sys->System_Status;
+    g_holdingRegisters[base_addr + 0x03] = sys->System_Error;
+    g_holdingRegisters[base_addr + 0x04] = sys->Reset_Error_Command;
+    g_holdingRegisters[base_addr + 0x05] = sys->Config_Baudrate;
+    g_holdingRegisters[base_addr + 0x06] = sys->Config_Parity;
 }
 
 // Xử lý logic điều khiển motor

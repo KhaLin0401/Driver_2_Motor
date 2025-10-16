@@ -46,6 +46,9 @@ extern uint32_t g_queueFullCount;
 extern uint32_t g_lastResetTime;
 extern uint8_t g_receivedIndex;
 
+// LED indicator flag
+extern uint8_t g_ledIndicator;
+
 #define UART_HEALTH_CHECK_INTERVAL 1000  // Check every 1 second
 #define UART_MAX_TIMEOUT_COUNT 3         // Reset after 3 timeouts
 #define UART_QUEUE_TIMEOUT 10            // 10ms timeout for queue operations

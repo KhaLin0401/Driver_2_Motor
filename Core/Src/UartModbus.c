@@ -36,6 +36,9 @@ uint32_t g_queueFullCount = 0;
 uint32_t g_lastResetTime = 0;
 uint8_t g_receivedIndex = 0;
 
+// LED indicator flag
+uint8_t g_ledIndicator = 0;
+
 // UART health monitoring variables
 uint32_t last_health_check = 0;
 static uint8_t uart_error_count = 0;
@@ -196,7 +199,7 @@ void resetUARTCommunication(void) {
 
 void processModbusFrame(void) {
     if (rxIndex < 6) return;
-    if (rxBuffer[0] != MODBUS_SLAVE_ADDRESS) {
+    if (rxBuffer[0] != g_holdingRegisters[REG_DEVICE_ID]) {
         rxIndex = 0;
         frameReceived = 0;
         return;
@@ -213,7 +216,7 @@ void processModbusFrame(void) {
     uint8_t funcCode = rxBuffer[1];
     uint8_t txBuffer[256];
     uint8_t txIndex = 0;
-    txBuffer[0] = MODBUS_SLAVE_ADDRESS;
+    txBuffer[0] = g_holdingRegisters[REG_DEVICE_ID];
     txBuffer[1] = funcCode;
 
     if (funcCode == 3) {
@@ -304,6 +307,9 @@ void processModbusFrame(void) {
     if (modbusTxMutex != NULL) {
         osMutexRelease(modbusTxMutex);
     }
+    
+    // Đánh dấu để LED nháy
+    g_ledIndicator = 1;
     
     // Reset buffer sau khi xử lý
     rxIndex = 0;
