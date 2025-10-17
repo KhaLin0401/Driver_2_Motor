@@ -27,13 +27,26 @@ Core/Src/freertos.o: ../Core/Src/freertos.c \
  ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_dma.h \
  ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_dma_ex.h \
  ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_cortex.h \
+ ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_adc.h \
+ ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_adc_ex.h \
  ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_flash.h \
  ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_flash_ex.h \
  ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_i2c.h \
  ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_pwr.h \
  ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim.h \
  ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim_ex.h \
- ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h
+ ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h \
+ ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_ll_rcc.h \
+ ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_ll_bus.h \
+ ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_ll_system.h \
+ ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_ll_exti.h \
+ ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_ll_cortex.h \
+ ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_ll_utils.h \
+ ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_ll_pwr.h \
+ ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_ll_dma.h \
+ ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_ll_tim.h \
+ ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_ll_usart.h \
+ ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_ll_gpio.h
 ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h:
 ../Core/Inc/FreeRTOSConfig.h:
 ../Middlewares/Third_Party/FreeRTOS/Source/include/projdefs.h:
@@ -63,6 +76,8 @@ Core/Src/freertos.o: ../Core/Src/freertos.c \
 ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_dma.h:
 ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_dma_ex.h:
 ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_cortex.h:
+../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_adc.h:
+../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_adc_ex.h:
 ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_flash.h:
 ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_flash_ex.h:
 ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_i2c.h:
@@ -70,3 +85,14 @@ Core/Src/freertos.o: ../Core/Src/freertos.c \
 ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim.h:
 ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim_ex.h:
 ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h:
+../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_ll_rcc.h:
+../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_ll_bus.h:
+../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_ll_system.h:
+../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_ll_exti.h:
+../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_ll_cortex.h:
+../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_ll_utils.h:
+../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_ll_pwr.h:
+../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_ll_dma.h:
+../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_ll_tim.h:
+../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_ll_usart.h:
+../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_ll_gpio.h:

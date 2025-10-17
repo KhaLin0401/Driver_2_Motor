@@ -1,10 +1,7 @@
-../Core/Src/main.c:618:6:StartDefaultTask	8	static
-../Core/Src/main.c:253:6:SystemClock_Config	72	static,ignoring_inline_asm
-../Core/Src/main.c:134:5:main	64	static,ignoring_inline_asm
-../Core/Src/main.c:444:10:calcCRC	16	static
-../Core/Src/main.c:492:6:HAL_UART_ErrorCallback	8	static
-../Core/Src/main.c:502:6:resetUARTCommunication	8	static
-../Core/Src/main.c:509:6:processModbusFrame	280	static
-../Core/Src/main.c:460:6:HAL_UART_RxCpltCallback	16	static
-../Core/Src/main.c:646:6:StartUartTask	8	static
-../Core/Src/main.c:675:6:Error_Handler	0	static,ignoring_inline_asm
+../Core/Src/main.c:652:6:StartIOTask	24	static
+../Core/Src/main.c:680:6:StartUartTask	24	static
+../Core/Src/main.c:727:6:StartMotorTask	24	static
+../Core/Src/main.c:769:6:StartVisibleTask	16	static
+../Core/Src/main.c:232:6:SystemClock_Config	88	static,ignoring_inline_asm
+../Core/Src/main.c:117:5:main	112	static,ignoring_inline_asm
+../Core/Src/main.c:791:6:Error_Handler	0	static,ignoring_inline_asm

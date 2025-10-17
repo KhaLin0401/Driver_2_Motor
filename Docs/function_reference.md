@@ -1,103 +1,68 @@
 # 📘 Function Reference for Dual DC Motor Driver with Modbus RTU (STM32F103C8T6)
 
-This document outlines the key functions used in the firmware for a dual DC motor driver system using Modbus RTU and running on STM32F103C8T6 with FreeRTOS. The driver supports three control modes: ON/OFF, LINEAR, and PID.
+# 📘 Tài liệu tham khảo các hàm trong Driver điều khiển 2 động cơ DC (STM32F103C8T6)
 
-## 🔧 System Initialization
+Dựa trên code hiện tại trong dự án, dưới đây là các hàm chính được sử dụng:
 
-### `void System_Init(void)`
+## 🔧 Khởi tạo và cấu hình hệ thống
 
-Initializes clocks, GPIOs, peripherals (PWM, UART, Timers), and FreeRTOS tasks.
+### `void SystemClock_Config(void)`
+Cấu hình clock hệ thống cho STM32F103C8T6.
 
-### `void Modbus_Init(void)`
+### `void MX_GPIO_Init(void)`
+Khởi tạo các chân GPIO được sử dụng.
 
-Initializes FreeModbus stack in RTU mode and configures callbacks.
+### `void MX_TIM1_Init(void)` 
+Khởi tạo Timer 1 cho PWM điều khiển động cơ.
 
-## 🔁 Modbus Handling
+### `void MX_USART1_UART_Init(void)`
+Khởi tạo UART1 cho giao tiếp Modbus.
 
-### `eMBErrorCode eMBRegHoldingCB(...)`
+## 🔄 Xử lý động cơ
 
-Modbus callback for holding register read/write. Maps Modbus registers to variables in ModbusData_t.
+### `void Motor_ProcessControl(Motor_t* motor)`
+Xử lý logic điều khiển cho một động cơ, bao gồm:
+- Đọc trạng thái từ thanh ghi Modbus
+- Thực hiện điều khiển theo mode đã chọn
+- Cập nhật trạng thái trở lại thanh ghi
 
-### `void Update_Modbus_Register_Map(void)`
+### `void MotorRegisters_Load(Motor_t* motor, uint16_t baseAddr)`
+Đọc dữ liệu từ thanh ghi Modbus vào cấu trúc điều khiển động cơ.
 
-Updates Modbus RAM variables from actual system state.
+### `void MotorRegisters_Save(Motor_t* motor, uint16_t baseAddr)` 
+Lưu trạng thái động cơ ra thanh ghi Modbus.
 
-## ⚙️ Motor Control Interface
+## 🎮 Điều khiển PID
 
-### `void Motor_Init(uint8_t motor_id)`
+### `void PID_Init(uint8_t motor_id, float kp, float ki, float kd)`
+Khởi tạo bộ điều khiển PID cho động cơ với các thông số:
+- DEFAULT_PID_KP: Hệ số tỉ lệ
+- DEFAULT_PID_KI: Hệ số tích phân  
+- DEFAULT_PID_KD: Hệ số vi phân
 
-Initializes motor-specific GPIOs, PWM, timers.
+## 🧠 Các Task RTOS
 
-### `void Motor_Run(uint8_t motor_id)`
+### `void StartDefaultTask(void *argument)`
+Task mặc định của hệ thống.
 
-Runs motor logic according to selected mode and enable flags.
+### `void StartMotorTask(void *argument)`
+Task chính điều khiển động cơ:
+- Chu kỳ thực hiện: 10ms
+- Đọc dữ liệu từ Modbus
+- Xử lý điều khiển cho 2 động cơ
+- Cập nhật trạng thái
 
-### `void Motor_Stop(uint8_t motor_id)`
+### `void StartVisibleTask(void *argument)`
+Task hiển thị và giám sát hệ thống.
 
-Stops motor (sets PWM = 0, disables direction outputs).
+## ⚠️ Xử lý lỗi
 
-### `void Motor_SetSpeed(uint8_t motor_id, int16_t speed)`
+### `void Error_Handler(void)`
+Xử lý khi có lỗi xảy ra:
+- Disable ngắt
+- Dừng hệ thống
 
-Sets PWM duty cycle based on speed command.
-
-### `void Motor_SetDirection(uint8_t motor_id, uint8_t direction)`
-
-Sets motor direction based on command (forward/reverse).
-
-## 📈 PID Controller
-
-### `void PID_Init(PID_t *pid, float kp, float ki, float kd)`
-
-Initializes a PID control structure.
-
-### `float PID_Compute(PID_t *pid, float setpoint, float feedback)`
-
-Calculates PID output for given input and setpoint.
-
-## 🎯 Control Mode Execution
-
-### `void Execute_ONOFF_Mode(uint8_t motor_id)`
-
-Handles logic for ON/OFF mode using enable bit and preset speed.
-
-### `void Execute_LINEAR_Mode(uint8_t motor_id)`
-
-Handles logic for LINEAR mode using input percentage (0–100%).
-
-### `void Execute_PID_Mode(uint8_t motor_id)`
-
-Handles logic for PID control using actual feedback and setpoint.
-
-## 🔍 Feedback & Monitoring
-
-### `int16_t Read_Motor_Feedback(uint8_t motor_id)`
-
-Returns current speed or encoder feedback.
-
-### `void Update_Motor_Status(uint8_t motor_id)`
-
-Updates motor status word and error code.
-
-## 🧠 System Tasks (FreeRTOS)
-
-### `void Task_Modbus_Handler(void *params)`
-
-Handles polling of Modbus RTU stack.
-
-### `void Task_Motor_Control(void *params)`
-
-Main task that evaluates mode and updates motor control logic.
-
-### `void Task_Status_Monitor(void *params)`
-
-Periodically updates status registers and handles system-level errors.
-
-## 🔁 Utility & Config
-
-### `void Save_Config_To_Flash(void) (optional)`
-
-Saves Modbus config (slave ID, baudrate) to internal flash.
-
-### `void Load_Config_From_Flash(void)`
-
-Loads saved configuration on boot.
+### `void assert_failed(uint8_t *file, uint32_t line)`
+Xử lý khi có lỗi assert trong debug:
+- Báo file và dòng code lỗi
+- Chỉ hoạt động khi USE_FULL_ASSERT được enable
