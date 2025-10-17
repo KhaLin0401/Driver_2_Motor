@@ -1833,17 +1833,17 @@ LOAD D:/STM32CubeIDE_1.19.0/STM32CubeIDE/plugins/com.st.stm32cube.ide.mcu.extern
  .text.calcCRC  0x080015d4       0x30 ./Core/Src/UartModbus.o
                 0x080015d4                calcCRC
  .text.HAL_UART_RxCpltCallback
-                0x08001604       0x90 ./Core/Src/UartModbus.o
+                0x08001604       0x98 ./Core/Src/UartModbus.o
                 0x08001604                HAL_UART_RxCpltCallback
  .text.HAL_UART_ErrorCallback
-                0x08001694       0x40 ./Core/Src/UartModbus.o
-                0x08001694                HAL_UART_ErrorCallback
+                0x0800169c       0x40 ./Core/Src/UartModbus.o
+                0x0800169c                HAL_UART_ErrorCallback
  .text.resetUARTCommunication
-                0x080016d4       0x34 ./Core/Src/UartModbus.o
-                0x080016d4                resetUARTCommunication
+                0x080016dc       0x34 ./Core/Src/UartModbus.o
+                0x080016dc                resetUARTCommunication
  .text.processModbusFrame
-                0x08001708      0x21c ./Core/Src/UartModbus.o
-                0x08001708                processModbusFrame
+                0x08001710      0x214 ./Core/Src/UartModbus.o
+                0x08001710                processModbusFrame
  .text.updateBaudrate
                 0x08001924       0x94 ./Core/Src/UartModbus.o
                 0x08001924                updateBaudrate
