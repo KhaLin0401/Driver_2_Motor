@@ -50,7 +50,7 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/include/list.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os2.h \
  ../Core/Inc/ModbusMap.h ../Core/Inc/MotorControl.h ../Core/Inc/main.h \
- ../Core/Inc/UartModbus.h
+ ../Core/Inc/UartModbus.h ../Core/Inc/DOutput.h ../Core/Inc/ModbusMap.h
 ../Core/Inc/main.h:
 ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal.h:
 ../Core/Inc/stm32f1xx_hal_conf.h:
@@ -106,3 +106,5 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../Core/Inc/MotorControl.h:
 ../Core/Inc/main.h:
 ../Core/Inc/UartModbus.h:
+../Core/Inc/DOutput.h:
+../Core/Inc/ModbusMap.h:

@@ -22,6 +22,7 @@
 #include "ModbusMap.h"
 #include "MotorControl.h"
 #include "UartModbus.h"
+#include "DOutput.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <string.h>
@@ -654,6 +655,9 @@ void StartIOTask(void *argument)
   uint32_t previousTick = osKernelGetTickCount();
   for(;;)
   {
+    DOutput_Load(&doutput_state);
+    DOutput_Process(&doutput_state);
+    DOutput_Save(&doutput_state);
     g_taskCounter++;
     
     // Update input registers periodically (simulate sensor data)
@@ -722,10 +726,13 @@ void StartUartTask(void *argument)
 /* USER CODE END Header_StartMotorTask */
 void StartMotorTask(void *argument)
 {
+  uint32_t previousTick = osKernelGetTickCount();
   const uint16_t M1_BASE_ADDR = 0x0000;
   const uint16_t M2_BASE_ADDR = 0x0010;
   const uint16_t SYS_BASE_ADDR = 0x0100;
-  uint32_t previousTick = osKernelGetTickCount();
+  PID_Init(1, DEFAULT_PID_KP, DEFAULT_PID_KI, DEFAULT_PID_KD); // Motor 1
+  PID_Init(2, DEFAULT_PID_KP, DEFAULT_PID_KI, DEFAULT_PID_KD); // Motor 2
+  
   // Initialize PID controllers with default values
 
 
