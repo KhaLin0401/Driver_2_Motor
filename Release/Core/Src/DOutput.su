@@ -1,0 +1,7 @@
+../Core/Src/DOutput.c:21:6:DOutput_SetRelay.part.0	0	static
+../Core/Src/DOutput.c:5:6:DOutput_Init	0	static
+../Core/Src/DOutput.c:12:6:DOutput_Load	0	static
+../Core/Src/DOutput.c:17:6:DOutput_Save	0	static
+../Core/Src/DOutput.c:21:6:DOutput_SetRelay	0	static
+../Core/Src/DOutput.c:31:6:DOutput_GetState	0	static
+../Core/Src/DOutput.c:36:6:DOutput_Process	8	static
