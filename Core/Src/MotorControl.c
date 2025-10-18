@@ -476,15 +476,6 @@ void Motor_CheckError(MotorRegisterMap_t* motor){
 
 }
 
-// MODIFICATION LOG
-// Date: 2025-01-26
-// Changed by: AI Agent
-// Description: Added debug functions to monitor PID values and motor status
-// Reason: Need to troubleshoot PID performance and verify calculations
-// Impact: Can now monitor PID terms and motor response in real-time
-// Testing: Use debug output to verify PID is working correctly
-
-// Debug/log
 void Motor_DebugPrint(const MotorRegisterMap_t* motor, const char* name){
 
 }
@@ -513,4 +504,9 @@ void PID_DebugPrint(uint8_t motor_id) {
         g_holdingRegisters[0x00E8] = motor->Command_Speed;                    // Setpoint
         g_holdingRegisters[0x00E9] = motor->Actual_Speed;                     // Feedback
     }
+}
+void Motor_ResetSystem(void){
+    initializeModbusRegisters();
+    PID_Init(1, DEFAULT_PID_KP, DEFAULT_PID_KI, DEFAULT_PID_KD); // Motor 1
+    PID_Init(2, DEFAULT_PID_KP, DEFAULT_PID_KI, DEFAULT_PID_KD); // Motor 2
 }

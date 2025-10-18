@@ -156,6 +156,7 @@ void Motor_CheckError(MotorRegisterMap_t* motor);
 // Debug/log
 void Motor_DebugPrint(const MotorRegisterMap_t* motor, const char* name);
 void System_DebugPrint(const SystemRegisterMap_t* sys);
+void Motor_ResetSystem(void);
 
 #ifdef __cplusplus
 }
