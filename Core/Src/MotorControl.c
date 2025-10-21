@@ -55,14 +55,17 @@ void MotorRegisters_Load(MotorRegisterMap_t* motor, uint16_t base_addr) {
     motor->Error_Code = g_holdingRegisters[base_addr + 0x0D];
 }
 
-void SystemRegisters_Load(SystemRegisterMap_t* sys, uint16_t base_addr){
-    sys->Device_ID = g_holdingRegisters[base_addr + 0];
-    sys->Firmware_Version = g_holdingRegisters[base_addr + 1];
-    sys->System_Status = g_holdingRegisters[base_addr + 2];
-    sys->System_Error = g_holdingRegisters[base_addr + 3];
-    sys->Reset_Error_Command = g_holdingRegisters[base_addr + 4];
-    sys->Config_Baudrate = g_holdingRegisters[base_addr + 5];
-    sys->Config_Parity = g_holdingRegisters[base_addr + 6];
+void SystemRegisters_Load(SystemRegisterMap_t* sys){
+    sys->Device_ID = g_holdingRegisters[REG_DEVICE_ID];
+    sys->Config_Baudrate = g_holdingRegisters[REG_CONFIG_BAUDRATE];
+    sys->Config_Parity = g_holdingRegisters[REG_CONFIG_PARITY];
+    sys->Config_Stop_Bit = g_holdingRegisters[REG_CONFIG_STOP_BIT];
+    sys->Module_Type = g_holdingRegisters[REG_MODULE_TYPE];
+    sys->Firmware_Version = g_holdingRegisters[REG_FIRMWARE_VERSION];
+    sys->Hardware_Version = g_holdingRegisters[REG_HARDWARE_VERSION];
+    sys->System_Status = g_holdingRegisters[REG_SYSTEM_STATUS];
+    sys->System_Error = g_holdingRegisters[REG_SYSTEM_ERROR];
+    sys->Reset_Error_Command = g_holdingRegisters[REG_RESET_ERROR_COMMAND];
 }
 
 // Save lại vào modbus registers
@@ -82,14 +85,17 @@ void MotorRegisters_Save(MotorRegisterMap_t* motor, uint16_t base_addr){
     g_holdingRegisters[base_addr + 0x0C] = motor->Status_Word;
     g_holdingRegisters[base_addr + 0x0D] = motor->Error_Code;
 }
-void SystemRegisters_Save(SystemRegisterMap_t* sys, uint16_t base_addr){
-    g_holdingRegisters[base_addr + 0x00] = sys->Device_ID;
-    g_holdingRegisters[base_addr + 0x01] = sys->Firmware_Version;
-    g_holdingRegisters[base_addr + 0x02] = sys->System_Status;
-    g_holdingRegisters[base_addr + 0x03] = sys->System_Error;
-    g_holdingRegisters[base_addr + 0x04] = sys->Reset_Error_Command;
-    g_holdingRegisters[base_addr + 0x05] = sys->Config_Baudrate;
-    g_holdingRegisters[base_addr + 0x06] = sys->Config_Parity;
+void SystemRegisters_Save(SystemRegisterMap_t* sys){
+    g_holdingRegisters[REG_DEVICE_ID] = sys->Device_ID;
+    g_holdingRegisters[REG_FIRMWARE_VERSION] = sys->Firmware_Version;
+    g_holdingRegisters[REG_SYSTEM_STATUS] = sys->System_Status;
+    g_holdingRegisters[REG_SYSTEM_ERROR] = sys->System_Error;
+    g_holdingRegisters[REG_RESET_ERROR_COMMAND] = sys->Reset_Error_Command;
+    g_holdingRegisters[REG_CONFIG_BAUDRATE] = sys->Config_Baudrate;
+    g_holdingRegisters[REG_CONFIG_PARITY] = sys->Config_Parity;
+    g_holdingRegisters[REG_CONFIG_STOP_BIT] = sys->Config_Stop_Bit;
+    g_holdingRegisters[REG_MODULE_TYPE] = sys->Module_Type;
+    g_holdingRegisters[REG_HARDWARE_VERSION] = sys->Hardware_Version;
 }
 
 // Xử lý logic điều khiển motor
@@ -110,7 +116,7 @@ void Motor_ProcessControl(MotorRegisterMap_t* motor){
     else if(motor->Enable == 0){
         motor->Status_Word = 0x0000;
         g_holdingRegisters[REG_M1_STATUS_WORD] = 0x0000;
-        motor->Direction = IDLE;
+        //motor->Direction = IDLE;
         motor->Actual_Speed = 0; // Reset actual speed when disabled
         
         // ✅ CRITICAL FIX: STOP PWM WHEN DISABLED
@@ -123,11 +129,17 @@ void Motor_ProcessControl(MotorRegisterMap_t* motor){
         // Testing: Test enable/disable functionality in both ON/OFF and PID modes
         if(motor == &motor1) {
             Motor1_OutputPWM(motor, 0);           // Stop PWM with 0% duty
-            Motor1_Set_Direction(IDLE);           // Set direction to IDLE
+            //Motor1_Set_Direction(IDLE);           // Set direction to IDLE
         } else {
             Motor2_OutputPWM(motor, 0);           // Stop PWM with 0% duty  
-            Motor2_Set_Direction(IDLE);           // Set direction to IDLE
-        }
+            //Motor2_Set_Direction(IDLE);           // Set direction to IDLE
+        } 
+    }
+
+    if(motor == &motor1) {   
+        Motor1_Set_Direction(motor->Direction); 
+    } else {
+        Motor2_Set_Direction(motor->Direction);
     }
 }
 
@@ -505,8 +517,12 @@ void PID_DebugPrint(uint8_t motor_id) {
         g_holdingRegisters[0x00E9] = motor->Actual_Speed;                     // Feedback
     }
 }
-void Motor_ResetSystem(void){
+void System_ResetSystem(void){
     initializeModbusRegisters();
+
+    MotorRegisters_Load(&motor1, 0x0000);
+    MotorRegisters_Load(&motor2, 0x0010);
+    SystemRegisters_Load(&system);
     PID_Init(1, DEFAULT_PID_KP, DEFAULT_PID_KI, DEFAULT_PID_KD); // Motor 1
     PID_Init(2, DEFAULT_PID_KP, DEFAULT_PID_KI, DEFAULT_PID_KD); // Motor 2
 }
