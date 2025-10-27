@@ -64,7 +64,8 @@ typedef struct {
     float error;               // Current error
     float max_integral;        // Anti-windup limit
     float acceleration_limit;   // Rate of change limit
-    float max_output;          // Maximum output limit
+    float max_output;   
+    float simulated_output;       // Maximum output limit
 } PIDState_t;
 //------------------------------------------
 //  Vùng nhớ ánh xạ thanh ghi
@@ -102,7 +103,7 @@ void SystemRegisters_Save(SystemRegisterMap_t* sys);
 
 // Xử lý logic điều khiển motor
 void Motor_ProcessControl(MotorRegisterMap_t* motor);
-
+uint8_t getActualSpeed(uint8_t motor_id);
 void Motor_Set_Mode(MotorRegisterMap_t* motor, uint8_t mode);
 void Motor_Set_Enable(MotorRegisterMap_t* motor);
 void Motor_Set_Disable(MotorRegisterMap_t* motor);
@@ -152,6 +153,7 @@ float PID_Compute(uint8_t motor_id, float setpoint, float feedback);
 
 // Reset các lỗi nếu có
 void Motor_ResetError(MotorRegisterMap_t* motor);
+
 
 // Kiểm tra và xử lý các điều kiện lỗi (overcurrent, timeout,...)
 void Motor_CheckError(MotorRegisterMap_t* motor);

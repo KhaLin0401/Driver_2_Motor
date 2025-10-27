@@ -8,7 +8,7 @@
 | 0x0101  | Config_Baudrate        | uint8   | R/W   | 	1=9600, 2=19200, 3=38400, 4=57600, 5=115200       | 5  |
 | 0x0102  | Config_Parity           | uint8   | R/W | 0=None, 1=Even, 2=Odd     |    0      |
 | 0x0103  | Config_Stop_bit           | uint8   | R/W | 1 or 2  |   1         | 
-| 0x0104  | Module Type           | uint8   | R | Type of module                         | 4 = `motor driver`       |
+| 0x0104  | Module Type           | uint8   | R | Type of module                         | 3 = `motor driver`       |
 | 0x0105  | Firmware Version           | uint16   | R | Version of firmware                         | 0x001=`v0.01`       |
 | 0x0106  | Hardware Version            | uint16   | R | Version of hardware                         | 0x001=`v0.01`       |
 | 0x0107  | System_Status           | uint16   | R   | Bitfield: system status                      | 0x0000  |

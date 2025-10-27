@@ -87,11 +87,11 @@
 #define DEFAULT_DIRECTION          0       // Idle
 #define DEFAULT_MAX_SPEED          100
 #define DEFAULT_MIN_SPEED          0
-#define DEFAULT_PID_KP             100      // ×100
-#define DEFAULT_PID_KI             10       // ×100
+#define DEFAULT_PID_KP             10      // ×100
+#define DEFAULT_PID_KI             5       // ×100
 #define DEFAULT_PID_KD             5        // ×100
-#define DEFAULT_MAX_ACCELERATION   5
-#define DEFAULT_MAX_DECELERATION   4
+#define DEFAULT_MAX_ACCELERATION   14
+#define DEFAULT_MAX_DECELERATION   12
 #define DEFAULT_STATUS_WORD        0x0000
 #define DEFAULT_ERROR_CODE         0
 #define DEFAULT_CURRENT            0
