@@ -18,7 +18,7 @@
 
 ---
 
-## 🔵 Motor 1 Registers (Base Address: 0x0010)
+## 🔵 Motor 1 Registers (Base Address: 0x0000)
 
 | Address | Name                    | Type     | R/W | Description                                  | Default |    Range   |
 |---------|-------------------------|----------|-----|----------------------------------------------|---------|------------|
@@ -39,7 +39,7 @@
 
 ---
 
-## 🟢 Motor 2 Registers (Base Address: 0x0020)
+## 🟢 Motor 2 Registers (Base Address: 0x0010)
 
 | Address | Name                    | Type     | R/W | Description                                  | Default |    Range   |
 |---------|-------------------------|----------|-----|----------------------------------------------|---------|------------|
@@ -60,7 +60,7 @@
 
 ---
 
-## 🟢 Digital Input Registers (Base Address: 0x0030)
+## 🟢 Digital Input Registers (Base Address: 0x0020)
 
 | Address | Name            | Type   | R/W | Description                                                                                                          | Default | Range    |
 |---------|----------------|--------|-----|----------------------------------------------------------------------------------------------------------------------|---------|----------|
@@ -72,7 +72,7 @@
 | 0x0025  | CURRENT   | uint8 | R | Current of module (scale 100) | 0 | |
 ---
 
-## 🟢 Digital Output Registers (Base Address: 0x0040)
+## 🟢 Digital Output Registers (Base Address: 0x0030)
 
 | Address | Name            | Type   | R/W | Description                                                                                | Default | Range    |
 |---------|----------------|--------|-----|--------------------------------------------------------------------------------------------|---------|----------|
