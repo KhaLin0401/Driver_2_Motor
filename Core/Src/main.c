@@ -742,7 +742,10 @@ void StartMotorTask(void *argument)
       // 1. Load dữ liệu từ Modbus registers
       MotorRegisters_Load(&motor1, M1_BASE_ADDR);
       MotorRegisters_Load(&motor2, M2_BASE_ADDR);
-      SystemRegisters_Load(&system, SYS_BASE_ADDR);
+      SystemRegisters_Load(&system);
+      if(system.Reset_Error_Command == 1){
+        System_ResetSystem();
+      }
       updateBaudrate();
       // 2. Xử lý logic điều khiển motor 1
       Motor_ProcessControl(&motor1);
@@ -753,7 +756,7 @@ void StartMotorTask(void *argument)
       // 4. Save lại dữ liệu ngược ra Modbus registers
       MotorRegisters_Save(&motor1, M1_BASE_ADDR);
       MotorRegisters_Save(&motor2, M2_BASE_ADDR);
-      SystemRegisters_Save(&system, SYS_BASE_ADDR);
+      SystemRegisters_Save(&system);
 
       // 5. Delay theo chu kỳ task (ví dụ 10ms)
       osDelayUntil(previousTick += 30);

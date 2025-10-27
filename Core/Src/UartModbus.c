@@ -168,6 +168,8 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
                 // Nếu đã nhận đủ frame theo expectedLength
                 if (expectedLength > 0 && rxIndex >= expectedLength) {
                     frameReceived = 1;
+                    // Đánh dấu để LED nháy
+                    g_ledIndicator = 1;
                 }
             }
         } else {
@@ -308,8 +310,6 @@ void processModbusFrame(void) {
         osMutexRelease(modbusTxMutex);
     }
     
-    // Đánh dấu để LED nháy
-    g_ledIndicator = 1;
     
     // Reset buffer sau khi xử lý
     rxIndex = 0;

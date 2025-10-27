@@ -39,11 +39,33 @@ uint16_t mapRegisterAddress(uint16_t modbusAddress) {
 }
 // Load từ modbus registers
 void MotorRegisters_Load(MotorRegisterMap_t* motor, uint16_t base_addr) {
-    motor->Control_Mode = g_holdingRegisters[base_addr + 0x00];
-    motor->Enable = g_holdingRegisters[base_addr + 0x01];
-    motor->Command_Speed = g_holdingRegisters[base_addr + 0x02];
-    motor->Actual_Speed = g_holdingRegisters[base_addr + 0x03];
-    motor->Direction = g_holdingRegisters[base_addr + 0x04];
+    if(g_holdingRegisters[base_addr + 0x00] == 1 ||
+        g_holdingRegisters[base_addr + 0x00] == 2)
+        {
+            motor->Control_Mode = g_holdingRegisters[base_addr + 0x00];
+        }
+    
+        if(g_holdingRegisters[base_addr + 0x01] == 0 ||
+        g_holdingRegisters[base_addr + 0x01] == 1)
+        {
+            motor->Enable = g_holdingRegisters[base_addr + 0x01];
+        }
+    
+        if(g_holdingRegisters[base_addr + 0x02] <= 0)
+        motor->Command_Speed = 0;
+        else if(g_holdingRegisters[base_addr + 0x02] >= 100)
+        motor->Command_Speed = 100;
+        else
+        motor->Command_Speed = g_holdingRegisters[base_addr + 0x02];
+    
+        motor->Actual_Speed = g_holdingRegisters[base_addr + 0x03];
+    
+        if(g_holdingRegisters[base_addr + 0x04] == 0 ||
+        g_holdingRegisters[base_addr + 0x04] == 1 ||
+        g_holdingRegisters[base_addr + 0x04 == 2])
+        {
+            motor->Direction = g_holdingRegisters[base_addr + 0x04];
+        }
     motor->Max_Speed = g_holdingRegisters[base_addr + 0x05];
     motor->Min_Speed = g_holdingRegisters[base_addr + 0x06];
     motor->PID_Kp = g_holdingRegisters[base_addr + 0x07];
@@ -55,14 +77,17 @@ void MotorRegisters_Load(MotorRegisterMap_t* motor, uint16_t base_addr) {
     motor->Error_Code = g_holdingRegisters[base_addr + 0x0D];
 }
 
-void SystemRegisters_Load(SystemRegisterMap_t* sys, uint16_t base_addr){
-    sys->Device_ID = g_holdingRegisters[base_addr + 0];
-    sys->Firmware_Version = g_holdingRegisters[base_addr + 1];
-    sys->System_Status = g_holdingRegisters[base_addr + 2];
-    sys->System_Error = g_holdingRegisters[base_addr + 3];
-    sys->Reset_Error_Command = g_holdingRegisters[base_addr + 4];
-    sys->Config_Baudrate = g_holdingRegisters[base_addr + 5];
-    sys->Config_Parity = g_holdingRegisters[base_addr + 6];
+void SystemRegisters_Load(SystemRegisterMap_t* sys){
+    sys->Device_ID = g_holdingRegisters[REG_DEVICE_ID];
+    sys->Config_Baudrate = g_holdingRegisters[REG_CONFIG_BAUDRATE];
+    sys->Config_Parity = g_holdingRegisters[REG_CONFIG_PARITY];
+    sys->Config_Stop_Bit = g_holdingRegisters[REG_CONFIG_STOP_BIT];
+    sys->Module_Type = g_holdingRegisters[REG_MODULE_TYPE];
+    sys->Firmware_Version = g_holdingRegisters[REG_FIRMWARE_VERSION];
+    sys->Hardware_Version = g_holdingRegisters[REG_HARDWARE_VERSION];
+    sys->System_Status = g_holdingRegisters[REG_SYSTEM_STATUS];
+    sys->System_Error = g_holdingRegisters[REG_SYSTEM_ERROR];
+    sys->Reset_Error_Command = g_holdingRegisters[REG_RESET_ERROR_COMMAND];
 }
 
 // Save lại vào modbus registers
@@ -82,18 +107,24 @@ void MotorRegisters_Save(MotorRegisterMap_t* motor, uint16_t base_addr){
     g_holdingRegisters[base_addr + 0x0C] = motor->Status_Word;
     g_holdingRegisters[base_addr + 0x0D] = motor->Error_Code;
 }
-void SystemRegisters_Save(SystemRegisterMap_t* sys, uint16_t base_addr){
-    g_holdingRegisters[base_addr + 0x00] = sys->Device_ID;
-    g_holdingRegisters[base_addr + 0x01] = sys->Firmware_Version;
-    g_holdingRegisters[base_addr + 0x02] = sys->System_Status;
-    g_holdingRegisters[base_addr + 0x03] = sys->System_Error;
-    g_holdingRegisters[base_addr + 0x04] = sys->Reset_Error_Command;
-    g_holdingRegisters[base_addr + 0x05] = sys->Config_Baudrate;
-    g_holdingRegisters[base_addr + 0x06] = sys->Config_Parity;
+void SystemRegisters_Save(SystemRegisterMap_t* sys){
+    g_holdingRegisters[REG_DEVICE_ID] = sys->Device_ID;
+    g_holdingRegisters[REG_FIRMWARE_VERSION] = sys->Firmware_Version;
+    g_holdingRegisters[REG_SYSTEM_STATUS] = sys->System_Status;
+    g_holdingRegisters[REG_SYSTEM_ERROR] = sys->System_Error;
+    g_holdingRegisters[REG_RESET_ERROR_COMMAND] = sys->Reset_Error_Command;
+    g_holdingRegisters[REG_CONFIG_BAUDRATE] = sys->Config_Baudrate;
+    g_holdingRegisters[REG_CONFIG_PARITY] = sys->Config_Parity;
+    g_holdingRegisters[REG_CONFIG_STOP_BIT] = sys->Config_Stop_Bit;
+    g_holdingRegisters[REG_MODULE_TYPE] = sys->Module_Type;
+    g_holdingRegisters[REG_HARDWARE_VERSION] = sys->Hardware_Version;
 }
 
 // Xử lý logic điều khiển motor
 void Motor_ProcessControl(MotorRegisterMap_t* motor){
+    uint8_t motor_id = (motor == &motor1) ? 1 : 2;
+    PIDState_t* pid_state = (motor_id == 1) ? &pid_state1 : &pid_state2;
+
     if(motor->Enable == 1){
         switch(motor->Control_Mode){
             case CONTROL_MODE_ONOFF:
@@ -110,7 +141,11 @@ void Motor_ProcessControl(MotorRegisterMap_t* motor){
     else if(motor->Enable == 0){
         motor->Status_Word = 0x0000;
         g_holdingRegisters[REG_M1_STATUS_WORD] = 0x0000;
-        motor->Direction = IDLE;
+        //motor->Direction = IDLE;
+        pid_state->integral = 0.0f;
+        pid_state->last_error = 0.0f;
+        pid_state->output = 0.0f;
+        pid_state->error = 0.0f;
         motor->Actual_Speed = 0; // Reset actual speed when disabled
         
         // ✅ CRITICAL FIX: STOP PWM WHEN DISABLED
@@ -123,11 +158,17 @@ void Motor_ProcessControl(MotorRegisterMap_t* motor){
         // Testing: Test enable/disable functionality in both ON/OFF and PID modes
         if(motor == &motor1) {
             Motor1_OutputPWM(motor, 0);           // Stop PWM with 0% duty
-            Motor1_Set_Direction(IDLE);           // Set direction to IDLE
+            //Motor1_Set_Direction(IDLE);           // Set direction to IDLE
         } else {
             Motor2_OutputPWM(motor, 0);           // Stop PWM with 0% duty  
-            Motor2_Set_Direction(IDLE);           // Set direction to IDLE
-        }
+            //Motor2_Set_Direction(IDLE);           // Set direction to IDLE
+        } 
+    }
+
+    if(motor == &motor1) {   
+        Motor1_Set_Direction(motor->Direction); 
+    } else {
+        Motor2_Set_Direction(motor->Direction);
     }
 }
 
@@ -141,7 +182,18 @@ void Motor_Set_Enable(MotorRegisterMap_t* motor){
 }
 void Motor_Set_Disable(MotorRegisterMap_t* motor){
     motor->Enable = 0;
-    motor->Actual_Speed = 0; // Reset actual speed when disabled
+    motor->Actual_Speed = 0;
+    uint8_t motor_id = (motor == &motor1) ? 1 : 2;
+    PIDState_t* pid_state = (motor_id == 1) ? &pid_state1 : &pid_state2;
+    pid_state->output = 0.0f;
+    // Reset simulated_output
+    static float simulated_output1 = 0;
+    static float simulated_output2 = 0;
+    if (motor_id == 1) {
+        simulated_output1 = 0;
+    } else {
+        simulated_output2 = 0;
+    }
 }
 
 
@@ -252,29 +304,31 @@ uint8_t Motor_HandleOnOff(MotorRegisterMap_t* motor) {
 
 // Function to simulate actual speed measurement (replace with real encoder reading)
 uint8_t getActualSpeed(uint8_t motor_id) {
-    // For now, simulate speed based on PWM duty with some delay/filtering
-    // In real implementation, this should read from encoder or current sensor
     static uint8_t simulated_speed1 = 0;
     static uint8_t simulated_speed2 = 0;
-    
-    if (motor_id == 1) {
-        // Simple first-order filter to simulate motor response
-        uint8_t target_speed = motor1.Command_Speed;
-        if (simulated_speed1 < target_speed) {
-            simulated_speed1 += (target_speed > simulated_speed1 + 2) ? 2 : (target_speed - simulated_speed1);
-        } else if (simulated_speed1 > target_speed) {
-            simulated_speed1 -= (simulated_speed1 > target_speed + 2) ? 2 : (simulated_speed1 - target_speed);
+    MotorRegisterMap_t* motor = (motor_id == 1) ? &motor1 : &motor2;
+
+    // Reset simulated speed when motor is disabled or idle
+    if (motor->Enable == 0 || motor->Direction == IDLE) {
+        if (motor_id == 1) {
+            simulated_speed1 = 0;
+        } else {
+            simulated_speed2 = 0;
         }
-        return simulated_speed1;
-    } else {
-        uint8_t target_speed = motor2.Command_Speed;
-        if (simulated_speed2 < target_speed) {
-            simulated_speed2 += (target_speed > simulated_speed2 + 2) ? 2 : (target_speed - simulated_speed2);
-        } else if (simulated_speed2 > target_speed) {
-            simulated_speed2 -= (simulated_speed2 > target_speed + 2) ? 2 : (simulated_speed2 - target_speed);
-        }
-        return simulated_speed2;
+        return 0;
     }
+
+    // Simulate speed with first-order filter to mimic motor inertia
+    uint8_t target_speed = motor->Command_Speed;
+    uint8_t* simulated_speed = (motor_id == 1) ? &simulated_speed1 : &simulated_speed2;
+
+    if (*simulated_speed < target_speed) {
+        *simulated_speed += (target_speed > *simulated_speed + 2) ? 2 : (target_speed - *simulated_speed);
+    } else if (*simulated_speed > target_speed) {
+        *simulated_speed -= (*simulated_speed > target_speed + 2) ? 2 : (*simulated_speed - target_speed);
+    }
+
+    return *simulated_speed;
 }
 
 // Xử lý PID mode (mode 3)
@@ -282,45 +336,45 @@ uint8_t Motor_HandlePID(MotorRegisterMap_t* motor) {
     uint8_t motor_id = (motor == &motor1) ? 1 : 2;
     PIDState_t* pid_state = (motor_id == 1) ? &pid_state1 : &pid_state2;
 
-    // Check enable & mode
     if (motor->Enable == 0 || motor->Control_Mode != CONTROL_MODE_PID || motor->Direction == IDLE) {
         // Reset PID state
         pid_state->integral = 0.0f;
         pid_state->last_error = 0.0f;
         pid_state->output = 0.0f;
         pid_state->error = 0.0f;
-        
-        // Reset actual speed when disabled
-        motor->Actual_Speed = 0;
-        
-        // Disable motor output
+        pid_state->simulated_output = 0.0f;
         if (motor_id == 1) {
+            pid_state1.simulated_output = 0;
             Motor1_OutputPWM(motor, 0);
-            Motor1_Set_Direction(DIRECTION_IDLE);
+            //Motor1_Set_Direction(IDLE);
             HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_1);
         } else {
+            pid_state2.simulated_output = 0;
             Motor2_OutputPWM(motor, 0);
-            Motor2_Set_Direction(DIRECTION_IDLE);
+            //Motor2_Set_Direction(IDLE);
+            //HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1);
+            HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_3);
         }
         return 0;
     }
 
-
-    // Update acceleration limit from motor settings
+    // Update acceleration limit
     pid_state->acceleration_limit = (float)motor->Max_Acc;
 
-    // Compute PID with REAL feedback
+    // Compute PID with Actual_Speed as feedback
     float output = PID_Compute(motor_id, (float)motor->Command_Speed, (float)motor->Actual_Speed);
-    
+
+    // ✅ Keep Actual_Speed = output
     motor->Actual_Speed = output;
 
-    // Convert to PWM duty (0-100%)
+    // Convert to PWM duty
     uint8_t duty = (uint8_t)output;
-    
+
     // Clamp duty to max/min speed limits
     if (duty > motor->Max_Speed) duty = motor->Max_Speed;
     if (duty < motor->Min_Speed && duty > 0) duty = motor->Min_Speed;
     duty = duty * 0.98;
+
     // Update motor outputs
     if (motor_id == 1) {
         Motor1_OutputPWM(motor, duty);
@@ -377,19 +431,14 @@ void Motor2_OutputPWM(MotorRegisterMap_t* motor, uint8_t duty_percent){
 // Khởi tạo giá trị PID cho từng motor
 void PID_Init(uint8_t motor_id, float kp, float ki, float kd) {
     PIDState_t* pid_state = (motor_id == 1) ? &pid_state1 : &pid_state2;
-    
-    // Reset all state variables
     pid_state->integral = 0.0f;
     pid_state->last_error = 0.0f;
     pid_state->output = 0.0f;
     pid_state->error = 0.0f;
-    
-    // Set limits
-    pid_state->max_integral = 1000.0f;  // Anti-windup limit
-    pid_state->acceleration_limit = 10.0f;  // Limit rate of change
-    pid_state->max_output = 100.0f;  // Maximum PWM duty cycle
-    
-    // Set PID gains
+    pid_state->max_integral = 1000.0f;
+    pid_state->acceleration_limit = 500.0f; // Default 500 RPM/s
+    pid_state->max_output = 100.0f;
+    pid_state->simulated_output = 0.0f;
     MotorRegisterMap_t* motor = (motor_id == 1) ? &motor1 : &motor2;
     motor->PID_Kp = kp;
     motor->PID_Ki = ki;
@@ -398,72 +447,66 @@ void PID_Init(uint8_t motor_id, float kp, float ki, float kd) {
 
 // Tính toán PID mỗi chu kỳ - trả về duty % (0-100)
 float PID_Compute(uint8_t motor_id, float setpoint, float feedback) {
-    // Get correct motor and PID state
     MotorRegisterMap_t* motor = (motor_id == 1) ? &motor1 : &motor2;
     PIDState_t* pid_state = (motor_id == 1) ? &pid_state1 : &pid_state2;
     
-    // Get sample time in seconds (motor task runs every 10ms)
-    const float SAMPLE_TIME = 0.01f; // 10ms = 0.01s
+    const float SAMPLE_TIME = 0.01f; // 10ms
     
     // Calculate error
     pid_state->error = setpoint - feedback;
     
-    // ✅ CRITICAL FIX: Scale PID gains properly (×100 according to modbus_map.md)
-    float kp = (float)motor->PID_Kp / 100.0f;  // Scale down from ×100
-    float ki = (float)motor->PID_Ki / 100.0f;  // Scale down from ×100  
-    float kd = (float)motor->PID_Kd / 100.0f;  // Scale down from ×100
+    // Scale PID gains
+    float kp = (float)motor->PID_Kp / 100.0f;
+    float ki = (float)motor->PID_Ki / 100.0f;
+    float kd = (float)motor->PID_Kd / 100.0f;
     
     // Proportional term
     float p_term = kp * pid_state->error;
     
-    // Integral term with proper time scaling and anti-windup
+    // Integral term with anti-windup
     pid_state->integral += pid_state->error * SAMPLE_TIME;
-    
-    // Anti-windup: limit integral based on max output
     float max_integral = (ki != 0) ? (pid_state->max_output / ki) : pid_state->max_integral;
-    if (pid_state->integral > max_integral) {
-        pid_state->integral = max_integral;
-    } else if (pid_state->integral < -max_integral) {
-        pid_state->integral = -max_integral;
-    }
+    if (pid_state->integral > max_integral) pid_state->integral = max_integral;
+    else if (pid_state->integral < -max_integral) pid_state->integral = -max_integral;
     float i_term = ki * pid_state->integral;
     
-    // Derivative term with proper time scaling
+    // Derivative term with low-pass filter
     float derivative = (pid_state->error - pid_state->last_error) / SAMPLE_TIME;
-    
-    // Simple derivative filter to reduce noise
-    static float filtered_derivative1 = 0;
-    static float filtered_derivative2 = 0;
+    static float filtered_derivative1 = 0, filtered_derivative2 = 0;
     float* filtered_d = (motor_id == 1) ? &filtered_derivative1 : &filtered_derivative2;
-    
-    const float FILTER_ALPHA = 0.1f; // Low-pass filter coefficient
-    *filtered_d = (FILTER_ALPHA * derivative) + ((1.0f - FILTER_ALPHA) * (*filtered_d));
-    
+    const float FILTER_ALPHA = 0.1f;
+    *filtered_d = FILTER_ALPHA * derivative + (1.0f - FILTER_ALPHA) * (*filtered_d);
     float d_term = kd * (*filtered_d);
     pid_state->last_error = pid_state->error;
     
-    // Calculate raw output
+    // Raw output
     float raw_output = p_term + i_term + d_term;
     
-    // Apply rate limiting (acceleration limit per second)
+    // Simulated inertia
+    static float simulated_output1 = 0, simulated_output2 = 0;
+    float* simulated_output = (motor_id == 1) ? &simulated_output1 : &simulated_output2;
+    float target_output = raw_output;
+    if (*simulated_output < target_output)
+        *simulated_output += (target_output - *simulated_output > 2) ? 2 : (target_output - *simulated_output);
+    else if (*simulated_output > target_output)
+        *simulated_output -= (*simulated_output - target_output > 2) ? 2 : (*simulated_output - target_output);
+    
+    // Rate limiting
     float max_rate_change = pid_state->acceleration_limit * SAMPLE_TIME;
-    float output_change = raw_output - pid_state->output;
-    if (output_change > max_rate_change) {
-        raw_output = pid_state->output + max_rate_change;
-    } else if (output_change < -max_rate_change) {
-        raw_output = pid_state->output - max_rate_change;
-    }
+    float output_change = *simulated_output - pid_state->output;
+    if (output_change > max_rate_change)
+        *simulated_output = pid_state->output + max_rate_change;
+    else if (output_change < -max_rate_change)
+        *simulated_output = pid_state->output - max_rate_change;
     
-    // Apply output limits (0-100%)
-    if (raw_output > pid_state->max_output) {
-        raw_output = pid_state->max_output;
-    } else if (raw_output < 0.0f) {
-        raw_output = 0.0f;
-    }
-    
-    // Update and return output
-    pid_state->output = raw_output;
-    return raw_output;
+    // Clamp output
+    if (*simulated_output > pid_state->max_output) *simulated_output = pid_state->max_output;
+    if (*simulated_output < 0.0f) *simulated_output = 0.0f;
+
+    // ✅ FIX: Update PID state output
+    pid_state->output = *simulated_output;
+
+    return pid_state->output;
 }
 
 // Reset các lỗi nếu có
@@ -476,15 +519,6 @@ void Motor_CheckError(MotorRegisterMap_t* motor){
 
 }
 
-// MODIFICATION LOG
-// Date: 2025-01-26
-// Changed by: AI Agent
-// Description: Added debug functions to monitor PID values and motor status
-// Reason: Need to troubleshoot PID performance and verify calculations
-// Impact: Can now monitor PID terms and motor response in real-time
-// Testing: Use debug output to verify PID is working correctly
-
-// Debug/log
 void Motor_DebugPrint(const MotorRegisterMap_t* motor, const char* name){
 
 }
@@ -513,4 +547,13 @@ void PID_DebugPrint(uint8_t motor_id) {
         g_holdingRegisters[0x00E8] = motor->Command_Speed;                    // Setpoint
         g_holdingRegisters[0x00E9] = motor->Actual_Speed;                     // Feedback
     }
+}
+void System_ResetSystem(void){
+    initializeModbusRegisters();
+
+    MotorRegisters_Load(&motor1, 0x0000);
+    MotorRegisters_Load(&motor2, 0x0010);
+    SystemRegisters_Load(&system);
+    PID_Init(1, DEFAULT_PID_KP, DEFAULT_PID_KI, DEFAULT_PID_KD); // Motor 1
+    PID_Init(2, DEFAULT_PID_KP, DEFAULT_PID_KI, DEFAULT_PID_KD); // Motor 2
 }

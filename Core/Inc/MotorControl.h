@@ -35,6 +35,9 @@ typedef struct {
     uint16_t Reset_Error_Command;  // 0x0004
     uint16_t Config_Baudrate;      // 0x0005
     uint16_t Config_Parity;        // 0x0006
+    uint16_t Config_Stop_Bit;      // 0x0007
+    uint16_t Module_Type;          // 0x0008
+    uint16_t Hardware_Version;     // 0x0009
 } SystemRegisterMap_t;
 
 typedef struct {
@@ -61,7 +64,8 @@ typedef struct {
     float error;               // Current error
     float max_integral;        // Anti-windup limit
     float acceleration_limit;   // Rate of change limit
-    float max_output;          // Maximum output limit
+    float max_output;   
+    float simulated_output;       // Maximum output limit
 } PIDState_t;
 //------------------------------------------
 //  Vùng nhớ ánh xạ thanh ghi
@@ -91,15 +95,15 @@ void MotorRegisters_Init(MotorRegisterMap_t* motor);
 
 // Load từ modbus registers
 void MotorRegisters_Load(MotorRegisterMap_t* motor, uint16_t base_addr);
-void SystemRegisters_Load(SystemRegisterMap_t* sys, uint16_t base_addr);
+void SystemRegisters_Load(SystemRegisterMap_t* sys);
 
 // Save lại vào modbus registers
 void MotorRegisters_Save(MotorRegisterMap_t* motor, uint16_t base_addr);
-void SystemRegisters_Save(SystemRegisterMap_t* sys, uint16_t base_addr);
+void SystemRegisters_Save(SystemRegisterMap_t* sys);
 
 // Xử lý logic điều khiển motor
 void Motor_ProcessControl(MotorRegisterMap_t* motor);
-
+uint8_t getActualSpeed(uint8_t motor_id);
 void Motor_Set_Mode(MotorRegisterMap_t* motor, uint8_t mode);
 void Motor_Set_Enable(MotorRegisterMap_t* motor);
 void Motor_Set_Disable(MotorRegisterMap_t* motor);
@@ -150,12 +154,14 @@ float PID_Compute(uint8_t motor_id, float setpoint, float feedback);
 // Reset các lỗi nếu có
 void Motor_ResetError(MotorRegisterMap_t* motor);
 
+
 // Kiểm tra và xử lý các điều kiện lỗi (overcurrent, timeout,...)
 void Motor_CheckError(MotorRegisterMap_t* motor);
 
 // Debug/log
 void Motor_DebugPrint(const MotorRegisterMap_t* motor, const char* name);
 void System_DebugPrint(const SystemRegisterMap_t* sys);
+void System_ResetSystem(void);
 
 #ifdef __cplusplus
 }
