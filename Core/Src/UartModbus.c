@@ -97,6 +97,12 @@ void initializeModbusRegisters(void) {
     g_holdingRegisters[REG_DI3_ASSIGNMENT] = 0;
     g_holdingRegisters[REG_DI4_ASSIGNMENT] = 0;
     g_holdingRegisters[REG_CURRENT] = DEFAULT_CURRENT;
+    g_holdingRegisters[REG_M1_ENCODER_COUNT_LO] = 0;
+    g_holdingRegisters[REG_M1_ENCODER_COUNT_HI] = 0;
+    g_holdingRegisters[REG_M1_ENCODER_CONFIG] = 100;
+    g_holdingRegisters[REG_M1_ENCODER_RESET] = 0;
+    g_holdingRegisters[REG_M1_CALIB_SENSOR_STATUS] = 0;
+    g_holdingRegisters[REG_M1_CALIB_DISTANCE_MM] = 100;
     // Output Registers (0x0040-0x0044)  
     g_holdingRegisters[REG_DO_STATUS_WORD] = 0;
     g_holdingRegisters[REG_DO1_CONTROL] = 0;

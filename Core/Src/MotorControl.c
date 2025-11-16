@@ -343,7 +343,124 @@ uint8_t Motor_HandlePID(MotorRegisterMap_t* motor) {
     return duty;
 }
 
-
+uint8_t Motor_HandleCalib(MotorRegisterMap_t* motor){
+    uint8_t duty = 0;
+    uint8_t motor_id = (motor == &motor1) ? 1 : 2;
+    
+    if(motor->Enable == 1 && motor->Direction != IDLE) {
+        motor->Status_Word = 0x0001;
+        g_holdingRegisters[REG_M1_STATUS_WORD] = 0x0001;
+        // Xuất PWM theo tốc độ đặt
+        duty = motor->Command_Speed;
+        // Chu trình calibration
+        static uint8_t calib_state = 0;
+        static uint32_t calib_previousTick = 0;
+        
+        switch(calib_state) {
+            case 0: // Bắt đầu - Di chuyển về vị trí gốc (REVERSE)
+                motor->Direction = REVERSE;
+                duty = motor->Command_Speed * 0.98;
+                
+                // Kiểm tra sensor gốc
+                if(encoder1.Calib_Origin_Status == true) {
+                    Encoder_Reset(&encoder1);
+                    calib_state = 1;
+                    calib_previousTick = osKernelGetTickCount();
+                }
+                break;
+                
+            case 1: // Dừng tại vị trí gốc
+                motor->Direction = IDLE;
+                duty = 0;
+                
+                // Chờ 500ms để ổn định
+                if(osKernelGetTickCount() >= calib_previousTick + 500) {
+                    calib_state = 2;
+                    calib_previousTick = osKernelGetTickCount();
+                }
+                break;
+                
+            case 2: // Xả dây ra (FORWARD) theo khoảng cách calib
+                motor->Direction = FORWARD;
+                duty = motor->Command_Speed * 0.98;
+                
+                // Kiểm tra đã đạt khoảng cách calib chưa
+                uint16_t current_length = Encoder_MeasureLength(&encoder1);
+                if(current_length >= encoder1.Encoder_Calib_Length_CM_Max) {
+                    calib_state = 3;
+                    calib_previousTick = osKernelGetTickCount();
+                }
+                break;
+                
+            case 3: // Dừng sau khi đạt khoảng cách calib
+                motor->Direction = IDLE;
+                duty = 0;
+                
+                // Chờ 500ms để ổn định
+                if(osKernelGetTickCount() >= calib_previousTick + 500) {
+                    encoder1.Encoder_Calib_Status = 1; // Đánh dấu hoàn thành
+                    uint16_t current_length = Encoder_MeasureLength(&encoder1);
+                    encoder1.Encoder_Calib_Length_CM_Max = current_length;
+                    calib_state = 4;
+                    calib_previousTick = osKernelGetTickCount();
+                }
+                break;
+                
+            case 4: // Quay về vị trí gốc (REVERSE)
+                motor->Direction = REVERSE;
+                duty = motor->Command_Speed * 0.98;
+                
+                // Kiểm tra sensor gốc
+                if(encoder1.Calib_Origin_Status == true) {
+                    Encoder_Reset(&encoder1);
+                    calib_state = 5;
+                    calib_previousTick = osKernelGetTickCount();
+                }
+                break;
+                
+            case 5: // Hoàn thành calibration
+                motor->Direction = IDLE;
+                duty = 0;
+                
+                // Reset về trạng thái ban đầu sau 1s
+                if(osKernelGetTickCount() >= calib_previousTick + 1000) {
+                    calib_state = 0;
+                    motor->Enable = 0; // Disable motor
+                    motor->Control_Mode = 1; // ONOFF mode
+                }
+                break;
+                
+            default:
+                calib_state = 0;
+                break;
+        }
+        
+        motor->Actual_Speed = duty;
+        
+        if(motor_id == 1) {
+            Motor1_OutputPWM(motor, duty);
+            Motor1_Set_Direction(motor->Direction);
+        } else {
+            Motor2_OutputPWM(motor, duty);
+            Motor2_Set_Direction(motor->Direction);
+        }
+    } else {
+        motor->Status_Word = 0x0000;
+        g_holdingRegisters[REG_M1_STATUS_WORD] = 0x0000;
+        motor->Direction = IDLE;
+        motor->Actual_Speed = 0;
+        duty = 0;
+        if(motor_id == 1) {
+            Motor1_OutputPWM(motor, 0);
+            Motor1_Set_Direction(IDLE);
+        } else {
+            Motor2_OutputPWM(motor, 0);
+            Motor2_Set_Direction(IDLE);
+        }
+    }
+    
+    return duty;
+}
 // Gửi tín hiệu PWM dựa vào Actual_Speed
 void Motor1_OutputPWM(MotorRegisterMap_t* motor, uint8_t duty_percent){
     // Chuyển % thành giá trị phù hợp với Timer (0 - TIM_ARR)

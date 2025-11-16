@@ -55,6 +55,15 @@
 #define REG_DI3_ASSIGNMENT         0x0023
 #define REG_DI4_ASSIGNMENT         0x0024
 #define REG_CURRENT                0x0025
+#define REG_M1_ENCODER_COUNT       0x0026
+#define REG_M1_ENCODER_CONFIG      0x0027
+#define REG_M1_ENCODER_RESET       0x0028
+#define REG_M1_CALIB_SENSOR_STATUS 0x0029
+#define REG_M1_CALIB_DISTANCE_CM   0x002A
+#define REG_M1_CALIB_START         0x002B
+#define REG_M1_CALIB_STATUS        0x002C
+#define REG_M1_UNROLLED_WIRE_LENGTH_CM   0x002D
+#define REG_M1_CALIB_ORIGIN_STATUS 0x002E
 
 // Digital Output Registers (Base Address: 0x0040)
 #define REG_DO_STATUS_WORD         0x0030

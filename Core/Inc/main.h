@@ -28,17 +28,6 @@ extern "C" {
 
 /* Includes ------------------------------------------------------------------*/
 #include "stm32f1xx_hal.h"
-#include "stm32f1xx_ll_rcc.h"
-#include "stm32f1xx_ll_bus.h"
-#include "stm32f1xx_ll_system.h"
-#include "stm32f1xx_ll_exti.h"
-#include "stm32f1xx_ll_cortex.h"
-#include "stm32f1xx_ll_utils.h"
-#include "stm32f1xx_ll_pwr.h"
-#include "stm32f1xx_ll_dma.h"
-#include "stm32f1xx_ll_tim.h"
-#include "stm32f1xx_ll_usart.h"
-#include "stm32f1xx_ll_gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -111,16 +100,12 @@ static void MX_I2C1_Init(void);
 #define LED3_GPIO_Port GPIOC
 #define LED2_Pin GPIO_PIN_15
 #define LED2_GPIO_Port GPIOC
-#define LED1_Pin GPIO_PIN_1
-#define LED1_GPIO_Port GPIOA
 #define DIR_1_Pin GPIO_PIN_4
 #define DIR_1_GPIO_Port GPIOA
 #define IN1_Pin GPIO_PIN_5
 #define IN1_GPIO_Port GPIOA
 #define DIR_2_Pin GPIO_PIN_1
 #define DIR_2_GPIO_Port GPIOB
-#define IN4_Pin GPIO_PIN_10
-#define IN4_GPIO_Port GPIOB
 #define DIR_4_Pin GPIO_PIN_12
 #define DIR_4_GPIO_Port GPIOB
 #define IN2_Pin GPIO_PIN_13
