@@ -3,7 +3,7 @@
 
 #include "stdint.h" 
 #include "main.h"
-
+#include "stdbool.h"
 typedef struct {
     uint16_t Encoder_Count;                //Quantity of pulses
     uint16_t Encoder_Config;               //Configuration of encoder

@@ -55,6 +55,8 @@ typedef struct {
     uint8_t Max_Dec;      // Base + 0x0B
     uint8_t Status_Word;           // Base + 0x0C
     uint8_t Error_Code;           // Base + 0x0D
+    uint16_t Position_Current;    // Base + 0x0E
+    uint16_t Position_Target;     // Base + 0x0F
 } MotorRegisterMap_t;
 
 typedef struct {
@@ -137,6 +139,11 @@ uint8_t Motor_HandleOnOff(MotorRegisterMap_t* motor);
 // Xử lý PID mode (mode 3)
 uint8_t Motor_HandlePID(MotorRegisterMap_t* motor);
 
+uint8_t Motor_HandleCalib(MotorRegisterMap_t* motor);
+
+uint8_t Motor_HandlePosition(MotorRegisterMap_t* motor);
+
+void Motor_UpdatePosition(MotorRegisterMap_t* motor);
 // Gửi tín hiệu PWM dựa vào Actual_Speed
 void Motor1_OutputPWM(MotorRegisterMap_t* motor, uint8_t duty_percent);  // motor_id = 1 hoặc 2
 void Motor2_OutputPWM(MotorRegisterMap_t* motor, uint8_t duty_percent);  // motor_id = 1 hoặc 2

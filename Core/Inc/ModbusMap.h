@@ -31,6 +31,8 @@
 #define REG_M1_MAX_DECELERATION    0x000B
 #define REG_M1_STATUS_WORD         0x000C
 #define REG_M1_ERROR_CODE          0x000D
+#define REG_M1_POSITION_CURRENT    0x000E
+#define REG_M1_POSITION_TARGET     0x000F
 
 // Motor 2 Registers (Base Address: 0x0020)
 #define REG_M2_CONTROL_MODE        0x0010
@@ -47,6 +49,8 @@
 #define REG_M2_MAX_DECELERATION    0x001B
 #define REG_M2_STATUS_WORD         0x001C
 #define REG_M2_ERROR_CODE          0x001D
+#define REG_M2_POSITION_CURRENT    0x001E
+#define REG_M2_POSITION_TARGET     0x001F
 
 // Digital Input Registers (Base Address: 0x0030)
 #define REG_DI_STATUS_WORD         0x0020
@@ -108,6 +112,8 @@
 // Control Mode Values
 #define CONTROL_MODE_ONOFF        1
 #define CONTROL_MODE_PID          2
+#define CONTROL_MODE_POSITION     3
+#define CONTROL_MODE_CALIB        10
 
 // Direction Values
 #define DIRECTION_IDLE            0

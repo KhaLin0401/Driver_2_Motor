@@ -3,6 +3,7 @@
 #include "ModbusMap.h"
 #include "UartModbus.h"
 #include "stm32f1xx_hal.h"
+#include "Encoder.h"
 
 // Khởi tạo
 
@@ -53,6 +54,8 @@ void MotorRegisters_Load(MotorRegisterMap_t* motor, uint16_t base_addr) {
     motor->Max_Dec = g_holdingRegisters[base_addr + 0x0B];
     motor->Status_Word = g_holdingRegisters[base_addr + 0x0C];
     motor->Error_Code = g_holdingRegisters[base_addr + 0x0D];
+    motor->Position_Current = g_holdingRegisters[base_addr + 0x0E];
+    motor->Position_Target = g_holdingRegisters[base_addr + 0x0F];
 }
 
 void SystemRegisters_Load(SystemRegisterMap_t* sys){
@@ -84,6 +87,8 @@ void MotorRegisters_Save(MotorRegisterMap_t* motor, uint16_t base_addr){
     g_holdingRegisters[base_addr + 0x0B] = motor->Max_Dec;
     g_holdingRegisters[base_addr + 0x0C] = motor->Status_Word;
     g_holdingRegisters[base_addr + 0x0D] = motor->Error_Code;
+    g_holdingRegisters[base_addr + 0x0E] = motor->Position_Current;
+    g_holdingRegisters[base_addr + 0x0F] = motor->Position_Target;
 }
 void SystemRegisters_Save(SystemRegisterMap_t* sys){
     g_holdingRegisters[REG_DEVICE_ID] = sys->Device_ID;
@@ -100,6 +105,7 @@ void SystemRegisters_Save(SystemRegisterMap_t* sys){
 
 // Xử lý logic điều khiển motor
 void Motor_ProcessControl(MotorRegisterMap_t* motor){
+    Motor_UpdatePosition(motor);
     if(motor->Enable == 1){
         switch(motor->Control_Mode){
             case CONTROL_MODE_ONOFF:
@@ -108,7 +114,12 @@ void Motor_ProcessControl(MotorRegisterMap_t* motor){
             case CONTROL_MODE_PID:
                 Motor_HandlePID(motor);
                 break;
-
+            case CONTROL_MODE_POSITION:
+                Motor_HandlePosition(motor);
+                break;
+            case CONTROL_MODE_CALIB:
+                Motor_HandleCalib(motor);
+                break;
             default:
                 break;
         }   
@@ -117,16 +128,7 @@ void Motor_ProcessControl(MotorRegisterMap_t* motor){
         motor->Status_Word = 0x0000;
         g_holdingRegisters[REG_M1_STATUS_WORD] = 0x0000;
         //motor->Direction = IDLE;
-        motor->Actual_Speed = 0; // Reset actual speed when disabled
-        
-        // ✅ CRITICAL FIX: STOP PWM WHEN DISABLED
-        // MODIFICATION LOG
-        // Date: 2025-09-20
-        // Changed by: AI Agent
-        // Description: Added proper PWM stop when motor enable = 0
-        // Reason: Motor was not stopping when disabled due to missing PWM stop
-        // Impact: Motor now properly stops when enable = 0
-        // Testing: Test enable/disable functionality in both ON/OFF and PID modes
+        motor->Actual_Speed = 0; // Reset actual speed when disabled       
         if(motor == &motor1) {
             Motor1_OutputPWM(motor, 0);           // Stop PWM with 0% duty
             //Motor1_Set_Direction(IDLE);           // Set direction to IDLE
@@ -301,16 +303,19 @@ uint8_t Motor_HandlePID(MotorRegisterMap_t* motor) {
         pid_state->last_error = 0.0f;
         pid_state->output = 0.0f;
         pid_state->error = 0.0f;
+        pid_state->simulated_output = 0.0f;
         
         // Reset actual speed when disabled
         motor->Actual_Speed = 0;
         
         // Disable motor output
         if (motor_id == 1) {
+            pid_state1.simulated_output = 0;
             Motor1_OutputPWM(motor, 0);
             Motor1_Set_Direction(DIRECTION_IDLE);
             HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_1);
         } else {
+            pid_state2.simulated_output = 0;
             Motor2_OutputPWM(motor, 0);
             Motor2_Set_Direction(DIRECTION_IDLE);
         }
@@ -342,6 +347,112 @@ uint8_t Motor_HandlePID(MotorRegisterMap_t* motor) {
 
     return duty;
 }
+
+uint8_t Motor_HandlePosition(MotorRegisterMap_t* motor){
+    uint8_t motor_id = (motor == &motor1) ? 1 : 2;
+    PIDState_t* pid_state = (motor_id == 1) ? &pid_state1 : &pid_state2;
+
+    // Check enable & mode
+    if (motor->Enable == 0 || motor->Control_Mode != CONTROL_MODE_POSITION || motor->Direction == IDLE) {
+        // Reset PID state
+        pid_state->integral = 0.0f;
+        pid_state->last_error = 0.0f;
+        pid_state->output = 0.0f;
+        pid_state->error = 0.0f;
+        
+        // Reset actual speed when disabled
+        motor->Actual_Speed = 0;
+        
+        // Disable motor output
+        if (motor_id == 1) {
+            Motor1_OutputPWM(motor, 0);
+            Motor1_Set_Direction(DIRECTION_IDLE);
+            HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_1);
+        } else {
+            Motor2_OutputPWM(motor, 0);
+            Motor2_Set_Direction(DIRECTION_IDLE);
+        }
+        return 0;
+    }
+
+    // Get current position from encoder (in cm)
+    uint16_t current_position = Encoder_MeasureLength(&encoder1);
+    
+    // Get target position from motor registers (in cm)
+    uint16_t target_position = motor->Position_Target;
+    
+    // Calculate position error (in cm)
+    int16_t position_error = (int16_t)target_position - (int16_t)current_position;
+    
+    // Calculate absolute position error
+    uint16_t abs_position_error = (position_error > 0) ? position_error : -position_error;
+    
+    // Check if at target position (within tolerance)
+    if (abs_position_error <= 1) {
+        // At target position - stop motor
+        motor->Direction = DIRECTION_IDLE;
+        motor->Actual_Speed = 0;
+        if (motor_id == 1) {
+            Motor1_OutputPWM(motor, 0);
+            Motor1_Set_Direction(DIRECTION_IDLE);
+        } else {
+            Motor2_OutputPWM(motor, 0);
+            Motor2_Set_Direction(DIRECTION_IDLE);
+        }
+        return 0;
+    }
+    
+    // Determine direction based on position error
+    if (position_error > 0) {
+        // Need to move forward (unroll wire)
+        motor->Direction = DIRECTION_FORWARD;
+        if (motor_id == 1) {
+            Motor1_Set_Direction(DIRECTION_FORWARD);
+        } else {
+            Motor2_Set_Direction(DIRECTION_FORWARD);
+        }
+    } else {
+        // Need to move reverse (roll wire)
+        motor->Direction = DIRECTION_REVERSE;
+        if (motor_id == 1) {
+            Motor1_Set_Direction(DIRECTION_REVERSE);
+        } else {
+            Motor2_Set_Direction(DIRECTION_REVERSE);
+        }
+    }
+    
+    // Target speed is Command_Speed (configured speed %)
+    float target_speed = (float)motor->Command_Speed;
+    
+    // Update acceleration limit from motor settings
+    pid_state->acceleration_limit = (float)motor->Max_Acc;
+
+    // Compute PID with position error as feedback
+    // When far from target (large position error), output approaches target_speed
+    // When close to target (small position error), output decreases
+    float output = PID_Compute(motor_id, target_speed, (float)abs_position_error);
+    
+    motor->Actual_Speed = (uint8_t)output;
+
+    // Convert to PWM duty (0-100%)
+    uint8_t duty = (uint8_t)output;
+    
+    // Clamp duty to max/min speed limits
+    if (duty > motor->Max_Speed) duty = motor->Max_Speed;
+    if (duty < motor->Min_Speed && duty > 0) duty = motor->Min_Speed;
+    duty = duty * 0.98;
+    
+    // Update motor outputs
+    if (motor_id == 1) {
+        Motor1_OutputPWM(motor, duty);
+    } else {
+        Motor2_OutputPWM(motor, duty);
+    }
+
+    return duty;
+}
+
+
 
 uint8_t Motor_HandleCalib(MotorRegisterMap_t* motor){
     uint8_t duty = 0;
@@ -593,6 +704,10 @@ float PID_Compute(uint8_t motor_id, float setpoint, float feedback) {
     // Update and return output
     pid_state->output = raw_output;
     return raw_output;
+}
+
+void Motor_UpdatePosition(MotorRegisterMap_t* motor){
+    motor->Position_Current = encoder1.Encoder_Calib_Current_Length_CM;
 }
 
 // Reset các lỗi nếu có

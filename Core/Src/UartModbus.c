@@ -73,6 +73,8 @@ void initializeModbusRegisters(void) {
     g_holdingRegisters[REG_M1_MIN_SPEED] = DEFAULT_MIN_SPEED;
     g_holdingRegisters[REG_M1_MAX_ACCELERATION] = DEFAULT_MAX_ACCELERATION;
     g_holdingRegisters[REG_M1_MAX_DECELERATION] = DEFAULT_MAX_DECELERATION;
+    g_holdingRegisters[REG_M1_POSITION_CURRENT] = 0;
+    g_holdingRegisters[REG_M1_POSITION_TARGET] = 0;
     
     // Motor 2 Registers (0x0010-0x001C)
     g_holdingRegisters[REG_M2_CONTROL_MODE] = DEFAULT_CONTROL_MODE;
@@ -89,7 +91,9 @@ void initializeModbusRegisters(void) {
     g_holdingRegisters[REG_M2_MIN_SPEED] = DEFAULT_MIN_SPEED;
     g_holdingRegisters[REG_M2_MAX_ACCELERATION] = DEFAULT_MAX_ACCELERATION;
     g_holdingRegisters[REG_M2_MAX_DECELERATION] = DEFAULT_MAX_DECELERATION;
-    
+    g_holdingRegisters[REG_M2_POSITION_CURRENT] = 0;
+    g_holdingRegisters[REG_M2_POSITION_TARGET] = 0;
+
     // Input Registers (0x0020-0x0024)
     g_holdingRegisters[REG_DI_STATUS_WORD] = 0;
     g_holdingRegisters[REG_DI1_ASSIGNMENT] = 0;
@@ -97,12 +101,15 @@ void initializeModbusRegisters(void) {
     g_holdingRegisters[REG_DI3_ASSIGNMENT] = 0;
     g_holdingRegisters[REG_DI4_ASSIGNMENT] = 0;
     g_holdingRegisters[REG_CURRENT] = DEFAULT_CURRENT;
-    g_holdingRegisters[REG_M1_ENCODER_COUNT_LO] = 0;
-    g_holdingRegisters[REG_M1_ENCODER_COUNT_HI] = 0;
+    g_holdingRegisters[REG_M1_ENCODER_COUNT] = 0;
     g_holdingRegisters[REG_M1_ENCODER_CONFIG] = 100;
     g_holdingRegisters[REG_M1_ENCODER_RESET] = 0;
     g_holdingRegisters[REG_M1_CALIB_SENSOR_STATUS] = 0;
-    g_holdingRegisters[REG_M1_CALIB_DISTANCE_MM] = 100;
+    g_holdingRegisters[REG_M1_CALIB_DISTANCE_CM] = 300;
+    g_holdingRegisters[REG_M1_CALIB_START] = 0;
+    g_holdingRegisters[REG_M1_CALIB_STATUS] = 0;
+    g_holdingRegisters[REG_M1_UNROLLED_WIRE_LENGTH_CM] = 0;
+    g_holdingRegisters[REG_M1_CALIB_ORIGIN_STATUS] = 0;
     // Output Registers (0x0040-0x0044)  
     g_holdingRegisters[REG_DO_STATUS_WORD] = 0;
     g_holdingRegisters[REG_DO1_CONTROL] = 0;
