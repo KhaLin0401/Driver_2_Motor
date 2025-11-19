@@ -19,15 +19,17 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
-#include "Encoder.h"
-#include "ModbusMap.h"
-#include "UartModbus.h"
-#include "MotorControl.h"
-#include "DOutput.h"
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <string.h>
 #include <math.h>
+#include "UartModbus.h"
+#include "MotorControl.h"
+#include "DOutput.h"
+#include "Encoder.h"
+#include "ModbusMap.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -53,8 +55,9 @@ TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 
 UART_HandleTypeDef huart2;
-
 uint8_t current_baudrate = DEFAULT_CONFIG_BAUDRATE;
+
+
 
 /* Definitions for IOTask */
 osThreadId_t IOTaskHandle;
@@ -89,7 +92,7 @@ osThreadId_t EncoderTaskHandle;
 const osThreadAttr_t EncoderTask_attributes = {
   .name = "EncoderTask",
   .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityLow,
+  .priority = (osPriority_t) osPriorityNormal4,
 };
 /* USER CODE BEGIN PV */
 // Modbus register arrays
@@ -163,7 +166,7 @@ int main(void)
   
   // Initialize Modbus registers
   initializeModbusRegisters();
-  
+  Encoder_Init();
   // Khởi tạo buffer (KHÔNG bật UART IT trước khi RTOS start)
   // memset(rxBuffer, 0, RX_BUFFER_SIZE);
   // rxIndex = 0;
@@ -638,39 +641,42 @@ void StartIOTask(void *argument)
 /* USER CODE END Header_StartUartTask */
 void StartUartTask(void *argument)
 {
-  startModbusUARTReception();
-  
+  /* USER CODE BEGIN StartUartTask */
+  /* Infinite loop */
+	startModbusUARTReception();
+
   // Tính toán thời gian timeout dựa trên baudrate
   uint32_t charTime = (11 * 1000) / huart2.Init.BaudRate; // 11 bit per char (8N1 + start/stop)
   uint32_t frameTimeout = charTime * 4; // 3.5 char time for Modbus RTU
   uint32_t previousTick = osKernelGetTickCount();
   if (frameTimeout < 5) frameTimeout = 5; // Tối thiểu 5ms
-  
+
   /* Infinite loop */
   for(;;) {
 
-    g_modbusCounter++;
+	g_modbusCounter++;
 
-    // Xử lý frame đã nhận đủ
-    if (frameReceived) {
-        processModbusFrame();
-    }
-    
-    // Kiểm tra timeout cho frame chưa hoàn chỉnh
-    // Nếu có dữ liệu trong buffer nhưng chưa đủ frame và đã timeout
-    if (!frameReceived && rxIndex > 0 && (HAL_GetTick() - g_lastUARTActivity > frameTimeout)) {
-        // Frame không hoàn chỉnh và đã timeout - bỏ qua và reset
-        rxIndex = 0;
-        frameReceived = 0;
-        g_corruptionCount++;
-    }
+	// Xử lý frame đã nhận đủ
+	if (frameReceived) {
+		processModbusFrame();
+	}
 
-    // Kiểm tra sức khỏe UART định kỳ
-    checkUARTHealth();
+	// Kiểm tra timeout cho frame chưa hoàn chỉnh
+	// Nếu có dữ liệu trong buffer nhưng chưa đủ frame và đã timeout
+	if (!frameReceived && rxIndex > 0 && (HAL_GetTick() - g_lastUARTActivity > frameTimeout)) {
+		// Frame không hoàn chỉnh và đã timeout - bỏ qua và reset
+		rxIndex = 0;
+		frameReceived = 0;
+		g_corruptionCount++;
+	}
 
-    // Delay 1ms
-    osDelayUntil(previousTick += 10);
+	// Kiểm tra sức khỏe UART định kỳ
+	checkUARTHealth();
+
+	// Delay 1ms
+	osDelayUntil(previousTick += 10);
   }
+  /* USER CODE END StartUartTask */
 }
 
 /* USER CODE BEGIN Header_StartMotorTask */
@@ -682,41 +688,44 @@ void StartUartTask(void *argument)
 /* USER CODE END Header_StartMotorTask */
 void StartMotorTask(void *argument)
 {
+  /* USER CODE BEGIN StartMotorTask */
+  /* Infinite loop */
   uint32_t previousTick = osKernelGetTickCount();
   const uint16_t M1_BASE_ADDR = 0x0000;
   const uint16_t M2_BASE_ADDR = 0x0010;
   const uint16_t SYS_BASE_ADDR = 0x0100;
   PID_Init(1, DEFAULT_PID_KP, DEFAULT_PID_KI, DEFAULT_PID_KD); // Motor 1
   PID_Init(2, DEFAULT_PID_KP, DEFAULT_PID_KI, DEFAULT_PID_KD); // Motor 2
-  
+
   // Initialize PID controllers with default values
 
 
   // Vòng lặp RTOS
   for (;;)
   {
-      // 1. Load dữ liệu từ Modbus registers
-      MotorRegisters_Load(&motor1, M1_BASE_ADDR);
-      MotorRegisters_Load(&motor2, M2_BASE_ADDR);
-      SystemRegisters_Load(&system);
-      if(system.Reset_Error_Command == 1){
-        System_ResetSystem();
-      }
-      updateBaudrate();
-      // 2. Xử lý logic điều khiển motor 1
-      Motor_ProcessControl(&motor1);
+	  // 1. Load dữ liệu từ Modbus registers
+	  MotorRegisters_Load(&motor1, M1_BASE_ADDR);
+	  MotorRegisters_Load(&motor2, M2_BASE_ADDR);
+	  SystemRegisters_Load(&system);
+	  if(system.Reset_Error_Command == 1){
+		System_ResetSystem();
+	  }
+	  updateBaudrate();
+	  // 2. Xử lý logic điều khiển motor 1
+	  Motor_ProcessControl(&motor1);
 
-      // 3. Xử lý logic điều khiển motor 2
-      Motor_ProcessControl(&motor2);
+	  // 3. Xử lý logic điều khiển motor 2
+	  Motor_ProcessControl(&motor2);
 
-      // 4. Save lại dữ liệu ngược ra Modbus registers
-      MotorRegisters_Save(&motor1, M1_BASE_ADDR);
-      MotorRegisters_Save(&motor2, M2_BASE_ADDR);
-      SystemRegisters_Save(&system);
+	  // 4. Save lại dữ liệu ngược ra Modbus registers
+	  MotorRegisters_Save(&motor1, M1_BASE_ADDR);
+	  MotorRegisters_Save(&motor2, M2_BASE_ADDR);
+	  SystemRegisters_Save(&system);
 
-      // 5. Delay theo chu kỳ task (ví dụ 10ms)
-      osDelayUntil(previousTick += 30);
+	  // 5. Delay theo chu kỳ task (ví dụ 10ms)
+	  osDelayUntil(previousTick += 30);
   }
+  /* USER CODE END StartMotorTask */
 }
 
 /* USER CODE BEGIN Header_StartVisibleTask */
@@ -753,17 +762,17 @@ void StartVisibleTask(void *argument)
 /* USER CODE END Header_StartEncoderTask */
 void StartEncoderTask(void *argument)
 {
+  /* USER CODE BEGIN StartEncoderTask */
+  /* Infinite loop */
   uint32_t previousTick = osKernelGetTickCount();
   for(;;)
   {
     Encoder_Load(&encoder1);
-
     Encoder_Process(&encoder1);
-
     Encoder_Save(&encoder1);
-
-    osDelayUntil(previousTick += 250);
+    osDelayUntil(previousTick += 10);
   }
+  /* USER CODE END StartEncoderTask */
 }
 
 /**

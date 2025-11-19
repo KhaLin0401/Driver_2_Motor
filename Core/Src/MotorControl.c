@@ -106,6 +106,9 @@ void SystemRegisters_Save(SystemRegisterMap_t* sys){
 // Xử lý logic điều khiển motor
 void Motor_ProcessControl(MotorRegisterMap_t* motor){
     Motor_UpdatePosition(motor);
+    uint8_t motor_id = (motor == &motor1) ? 1 : 2;
+    PIDState_t* pid_state = (motor_id == 1) ? &pid_state1 : &pid_state2;
+    
     if(motor->Enable == 1){
         switch(motor->Control_Mode){
             case CONTROL_MODE_ONOFF:
@@ -127,6 +130,11 @@ void Motor_ProcessControl(MotorRegisterMap_t* motor){
     else if(motor->Enable == 0){
         motor->Status_Word = 0x0000;
         g_holdingRegisters[REG_M1_STATUS_WORD] = 0x0000;
+        pid_state->integral = 0.0f;
+        pid_state->last_error = 0.0f;
+        pid_state->output = 0.0f;
+        pid_state->error = 0.0f;
+        
         //motor->Direction = IDLE;
         motor->Actual_Speed = 0; // Reset actual speed when disabled       
         if(motor == &motor1) {

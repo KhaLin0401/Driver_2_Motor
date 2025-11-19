@@ -66,7 +66,8 @@ typedef struct {
     float error;               // Current error
     float max_integral;        // Anti-windup limit
     float acceleration_limit;   // Rate of change limit
-    float max_output;          // Maximum output limit
+    float max_output;    
+    float simulated_output; // Simulated output
 } PIDState_t;
 //------------------------------------------
 //  Vùng nhớ ánh xạ thanh ghi
