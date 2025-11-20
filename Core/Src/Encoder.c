@@ -9,15 +9,15 @@
 // ENCODER CONFIGURATION
 // ═══════════════════════════════════════════════════════════════════════════════
 // Hardware: 8-slot optical encoder (8 gaps/slots per revolution)
-// STM32 Mode: TIM_ENCODERMODE_TI12 (quadrature decoding on both edges)
-// Counting: 4x per encoder pulse (rising/falling edges of both channels A & B)
-// Result: 8 PPR × 4 = 32 counts per revolution
+// STM32 Mode: TIM_ENCODERMODE_TI1 (single channel, both edges counting)
+// Counting: 2x per encoder pulse (rising + falling edges of channel A)
+// Result: 8 slots × 2 edges = 16 counts per revolution
 // ═══════════════════════════════════════════════════════════════════════════════
 
 #define ENCODER_SLOTS           8       // Physical slots on encoder disk
 #define ENCODER_PPR             8       // Pulses Per Revolution (same as slots for optical encoder)
-#define ENCODER_CPR             (ENCODER_PPR * 4)  // Counts Per Revolution = 32 counts/rev
-#define ENCODER_RESOLUTION      (360.0f / ENCODER_CPR)  // Degrees per count = 11.25°/count
+#define ENCODER_CPR             16      // Counts Per Revolution = 16 counts/rev (8 slots × 2 edges)
+#define ENCODER_RESOLUTION      (360.0f / ENCODER_CPR)  // Degrees per count = 22.5°/count
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SPOOL GEOMETRY CONFIGURATION
@@ -105,6 +105,30 @@ void Encoder_Read(Encoder_t* encoder){
     
     // Đọc giá trị counter từ TIM2 (16-bit: 0-65535)
     uint16_t current_count = __HAL_TIM_GET_COUNTER(&htim2);
+    
+    // ✅ Software debounce: Chỉ cập nhật nếu thay đổi hợp lý
+    // Tránh trường hợp counter nhảy lung tung do nhiễu
+    static uint16_t last_valid_count = 0;
+    int32_t delta = (int32_t)current_count - (int32_t)last_valid_count;
+    
+    // Nếu delta quá lớn (>1000 trong 1 lần đọc) → có thể là nhiễu, bỏ qua
+    if(delta > 1000 || delta < -1000){
+        // Giữ nguyên giá trị cũ, không cập nhật
+        current_count = last_valid_count;
+    } else {
+        // Giá trị hợp lệ, cập nhật
+        last_valid_count = current_count;
+    }
+    
+    // ✅ Auto-reset nếu counter vượt ngưỡng 32768 (tránh Modbus Master đọc thành số âm)
+    if(current_count >= 32768){
+        __HAL_TIM_SET_COUNTER(&htim2, 0);
+        current_count = 0;
+        last_valid_count = 0;
+        // Reset wire length tracking để đồng bộ
+        Encoder_ResetWireLength(encoder);
+    }
+    
     encoder->Encoder_Count = current_count;
 }
 
@@ -324,9 +348,10 @@ uint16_t Encoder_MeasureLength(Encoder_t* encoder) {
     if (delta_count != 0) {
         
         // Convert encoder counts to revolutions
-        // For 8-slot encoder with TIM_ENCODERMODE_TI12: 32 counts = 1 revolution
+        // For 8-slot encoder with TIM_ENCODERMODE_TI1: 16 counts = 1 revolution
+        // (8 slots × 2 edges per slot = 16 counts/rev)
         // Positive delta_count = forward rotation = wire unrolling
-        // Negative delta_count = backward rotation = wire rewinding
+        // Note: TI1 mode only counts up, cannot detect reverse direction
         float delta_revolutions = (float)delta_count / (float)ENCODER_CPR;
         
         // Calculate current spool circumference
