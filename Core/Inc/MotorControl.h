@@ -157,6 +157,7 @@ void PID_Init(uint8_t motor_id, float kp, float ki, float kd);
 
 // Tính toán PID mỗi chu kỳ
 float PID_Compute(uint8_t motor_id, float setpoint, float feedback);
+float PID_Compute_Position(uint8_t motor_id, float setpoint, float feedback);
 
 // Reset các lỗi nếu có
 void Motor_ResetError(MotorRegisterMap_t* motor);

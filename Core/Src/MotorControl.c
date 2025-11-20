@@ -360,8 +360,9 @@ uint8_t Motor_HandlePosition(MotorRegisterMap_t* motor){
     uint8_t motor_id = (motor == &motor1) ? 1 : 2;
     PIDState_t* pid_state = (motor_id == 1) ? &pid_state1 : &pid_state2;
 
-    // Check enable & mode
-    if (motor->Enable == 0 || motor->Control_Mode != CONTROL_MODE_POSITION || motor->Direction == IDLE) {
+    // ✅ FIX: Chỉ kiểm tra Enable và Control_Mode, KHÔNG kiểm tra Direction
+    // Direction sẽ được tự động set dựa trên position_error ở dòng 414-430
+    if (motor->Enable == 0 || motor->Control_Mode != CONTROL_MODE_POSITION) {
         // Reset PID state
         pid_state->integral = 0.0f;
         pid_state->last_error = 0.0f;
@@ -384,7 +385,7 @@ uint8_t Motor_HandlePosition(MotorRegisterMap_t* motor){
     }
 
     // Get current position from encoder (in cm)
-    uint16_t current_position = Encoder_MeasureLength(&encoder1);
+    uint16_t current_position = motor->Position_Current;
     
     // Get target position from motor registers (in cm)
     uint16_t target_position = motor->Position_Target;
@@ -419,7 +420,7 @@ uint8_t Motor_HandlePosition(MotorRegisterMap_t* motor){
         } else {
             Motor2_Set_Direction(DIRECTION_FORWARD);
         }
-    } else {
+    } else if(position_error < 0){
         // Need to move reverse (roll wire)
         motor->Direction = DIRECTION_REVERSE;
         if (motor_id == 1) {
@@ -436,9 +437,9 @@ uint8_t Motor_HandlePosition(MotorRegisterMap_t* motor){
     pid_state->acceleration_limit = (float)motor->Max_Acc;
 
     // Compute PID with position error as feedback
-    // When far from target (large position error), output approaches target_speed
-    // When close to target (small position error), output decreases
-    float output = PID_Compute(motor_id, target_speed, (float)abs_position_error);
+    // PID_Compute_Position(motor_id, setpoint_cm, feedback_cm)
+    // setpoint = target position (cm), feedback = current position (cm)
+    float output = PID_Compute_Position(motor_id, (float)target_position, (float)current_position);
     
     motor->Actual_Speed = (uint8_t)output;
 
@@ -714,6 +715,113 @@ float PID_Compute(uint8_t motor_id, float setpoint, float feedback) {
     return raw_output;
 }
 
+float PID_Compute_Position(uint8_t motor_id, float setpoint_cm, float feedback_cm){
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // POSITION CONTROL PID
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // Input:  setpoint_cm = target position (cm), feedback_cm = current position (cm)
+    // Output: motor speed (0-100%)
+    // 
+    // PID calculates speed based on position error:
+    // - Large error → high speed (up to Command_Speed)
+    // - Small error → low speed (proportional slowdown)
+    // - At target → speed = 0
+    // ═══════════════════════════════════════════════════════════════════════════════
+    
+    // Get correct motor and PID state
+    MotorRegisterMap_t* motor = (motor_id == 1) ? &motor1 : &motor2;
+    PIDState_t* pid_state = (motor_id == 1) ? &pid_state1 : &pid_state2;
+    
+    // Get sample time in seconds (motor task runs every 10ms)
+    const float SAMPLE_TIME = 0.01f; // 10ms = 0.01s
+    
+    // Calculate position error (cm)
+    float position_error_cm = setpoint_cm - feedback_cm;
+    pid_state->error = position_error_cm;
+    
+    // Get absolute error for speed calculation
+    float abs_error = (position_error_cm > 0) ? position_error_cm : -position_error_cm;
+    
+    // ✅ Scale PID gains properly (×100 according to modbus_map.md)
+    float kp = (float)motor->PID_Kp / 100.0f;  // Scale down from ×100
+    float ki = (float)motor->PID_Ki / 100.0f;  // Scale down from ×100  
+    float kd = (float)motor->PID_Kd / 100.0f;  // Scale down from ×100
+    
+    // Get target speed from Command_Speed (%)
+    float max_speed = (float)motor->Command_Speed;
+    
+    // ───────────────────────────────────────────────────────────────────────────
+    // PROPORTIONAL TERM: Speed proportional to position error
+    // ───────────────────────────────────────────────────────────────────────────
+    // When error is large, speed approaches max_speed
+    // When error is small, speed decreases proportionally
+    float p_term = kp * abs_error;
+    
+    // ───────────────────────────────────────────────────────────────────────────
+    // INTEGRAL TERM: Eliminate steady-state error
+    // ───────────────────────────────────────────────────────────────────────────
+    pid_state->integral += position_error_cm * SAMPLE_TIME;
+    
+    // Anti-windup: limit integral
+    float max_integral = 50.0f;  // Limit integral contribution
+    if (pid_state->integral > max_integral) {
+        pid_state->integral = max_integral;
+    } else if (pid_state->integral < -max_integral) {
+        pid_state->integral = -max_integral;
+    }
+    float i_term = ki * pid_state->integral;
+    
+    // ───────────────────────────────────────────────────────────────────────────
+    // DERIVATIVE TERM: Damping, reduce overshoot
+    // ───────────────────────────────────────────────────────────────────────────
+    float derivative = (position_error_cm - pid_state->last_error) / SAMPLE_TIME;
+    
+    // Low-pass filter for derivative (reduce noise)
+    static float filtered_derivative1 = 0;
+    static float filtered_derivative2 = 0;
+    float* filtered_d = (motor_id == 1) ? &filtered_derivative1 : &filtered_derivative2;
+    
+    const float FILTER_ALPHA = 0.1f;
+    *filtered_d = (FILTER_ALPHA * derivative) + ((1.0f - FILTER_ALPHA) * (*filtered_d));
+    
+    float d_term = kd * (*filtered_d);
+    pid_state->last_error = position_error_cm;
+    
+    // ───────────────────────────────────────────────────────────────────────────
+    // CALCULATE OUTPUT SPEED (0-100%)
+    // ───────────────────────────────────────────────────────────────────────────
+    float raw_output = p_term + i_term + d_term;
+    
+    // Clamp to max speed (Command_Speed)
+    if (raw_output > max_speed) {
+        raw_output = max_speed;
+    }
+    
+    // Clamp to motor limits
+    if (raw_output > motor->Max_Speed) {
+        raw_output = motor->Max_Speed;
+    }
+    
+    // Apply minimum speed threshold
+    if (raw_output > 0 && raw_output < motor->Min_Speed) {
+        raw_output = motor->Min_Speed;
+    }
+    
+    // Stop if very close to target (within 1cm)
+    if (abs_error <= 1.0f) {
+        raw_output = 0.0f;
+        pid_state->integral = 0.0f;  // Reset integral when stopped
+    }
+    
+    // Ensure non-negative output
+    if (raw_output < 0.0f) {
+        raw_output = 0.0f;
+    }
+    
+    // Update and return output
+    pid_state->output = raw_output;
+    return raw_output;
+}
 void Motor_UpdatePosition(MotorRegisterMap_t* motor){
     motor->Position_Current = encoder1.Encoder_Calib_Current_Length_CM;
 }
