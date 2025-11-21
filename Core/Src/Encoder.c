@@ -8,17 +8,19 @@
 #include <stdbool.h>
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ENCODER CONFIGURATION
+// ENCODER CONFIGURATION - INPUT CAPTURE MODE WITH DMA
 // ═══════════════════════════════════════════════════════════════════════════════
 // ⚠️ HARDWARE CONFIGURATION:
 // - Encoder: 1-channel optical encoder (chỉ có kênh A)
-// - Timer Mode: TIM_ENCODERMODE_TI1 (CH1 đếm xung, CH2 xác định chiều)
-// - Problem: CH2 không có tín hiệu → đọc noise → counter nhảy lung tung
+// - Timer Mode: INPUT CAPTURE (TIM2_CH1) với DMA
+// - Polarity: FALLING edge (cạnh xuống)
+// - DMA: Circular mode để đếm số xung tự động
 // 
-// ✅ SOLUTION APPLIED:
-// 1. Hardware: IC2Filter = 15 (MAX) để chặn noise trên CH2
-// 2. Software: Treat counter as ABSOLUTE position (always increasing)
-// 3. Direction: Use Motor_Direction để xác định chiều thực tế
+// ✅ ADVANTAGES OF INPUT CAPTURE + DMA:
+// 1. Hardware: DMA đếm xung tự động, không cần CPU
+// 2. Accuracy: Không bị mất xung khi CPU bận
+// 3. Performance: CPU chỉ xử lý khi cần, không phải polling liên tục
+// 4. Direction: Use Motor_Direction để xác định chiều thực tế
 // ═══════════════════════════════════════════════════════════════════════════════
 
 #define ENCODER_SLOTS           8       // Physical slots on encoder disk
@@ -55,6 +57,15 @@
 #define AUTO_RESET_THRESHOLD    32000       // Auto-reset counter before Modbus int16 overflow
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// INPUT CAPTURE DMA CONFIGURATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#define DMA_BUFFER_SIZE     100     // Kích thước buffer DMA (số xung tối đa giữa 2 lần đọc)
+
+// DMA buffer để lưu giá trị Input Capture
+static uint32_t dma_capture_buffer[DMA_BUFFER_SIZE];
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // PRIVATE STATE VARIABLES
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -64,16 +75,19 @@ typedef struct {
     float current_radius_mm;        // Current spool radius (mm)
     int32_t total_encoder_ticks;    // Cumulative encoder ticks (signed, for bidirectional)
     
-    // Hardware state
-    uint16_t last_hardware_count;   // Previous raw hardware counter value
-    uint16_t stable_count;          // Debounced/validated counter value
+    // Input Capture DMA state
+    uint32_t pulse_count;           // Tổng số xung đã đếm được
+    uint32_t last_dma_counter;      // Giá trị DMA counter lần trước
     uint16_t last_encoder_count;    // Previous encoder reading for delta calculation
+    
     // Filtering
     float filtered_length_mm;       // Low-pass filtered length for noise reduction
     
     // Diagnostics
     uint32_t noise_reject_count;    // Number of rejected noisy readings
     uint32_t overflow_count;        // Number of counter overflows handled
+    uint32_t dma_half_complete;     // Số lần DMA Half Complete callback
+    uint32_t dma_full_complete;     // Số lần DMA Full Complete callback
     
     bool initialized;               // Initialization flag
 } EncoderState_t;
@@ -82,12 +96,14 @@ static EncoderState_t encoder_state = {
     .unrolled_length_mm = 0.0f,
     .current_radius_mm = SPOOL_RADIUS_FULL_MM,
     .total_encoder_ticks = 0,
-    .last_hardware_count = 0,
-    .stable_count = 0,
+    .pulse_count = 0,
+    .last_dma_counter = 0,
     .last_encoder_count = 0,
     .filtered_length_mm = 0.0f,
     .noise_reject_count = 0,
     .overflow_count = 0,
+    .dma_half_complete = 0,
+    .dma_full_complete = 0,
     .initialized = false
 };
 
@@ -98,10 +114,15 @@ Encoder_t encoder1;
  * @brief Initialize encoder hardware and state variables
  * 
  * This function:
- * 1. Starts the STM32 hardware encoder interface (TIM2)
+ * 1. Starts Input Capture with DMA on TIM2_CH1
  * 2. Resets all encoder counters to zero
  * 3. Initializes the encoder state structure
  * 4. Sets the initial spool radius to maximum (full spool)
+ * 
+ * DMA Configuration:
+ * - Mode: Circular (tự động quay vòng buffer)
+ * - Buffer Size: DMA_BUFFER_SIZE (100 xung)
+ * - Trigger: Falling edge trên TIM2_CH1
  */
 void Encoder_Init(void){
     // Initialize encoder hardware structure
@@ -115,43 +136,52 @@ void Encoder_Init(void){
     encoder1.Encoder_Calib_Status = 0;
     encoder1.Encoder_Calib_Current_Length_CM = 0;
     
-    // Start STM32 hardware encoder (TIM2 in quadrature mode)
-    HAL_TIM_Encoder_Start(&htim2, TIM_CHANNEL_1);
-    __HAL_TIM_SET_COUNTER(&htim2, 0);
+    // Initialize DMA buffer
+    for(int i = 0; i < DMA_BUFFER_SIZE; i++){
+        dma_capture_buffer[i] = 0;
+    }
+    
+    // Start Input Capture with DMA (Circular mode)
+    // DMA sẽ tự động lưu giá trị CCR1 mỗi khi có cạnh xuống
+    HAL_TIM_IC_Start_DMA(&htim2, TIM_CHANNEL_1, dma_capture_buffer, DMA_BUFFER_SIZE);
     
     // Initialize encoder state tracking
     encoder_state.unrolled_length_mm = 0.0f;
     encoder_state.current_radius_mm = SPOOL_RADIUS_FULL_MM;
-    encoder_state.last_hardware_count = 0;
+    encoder_state.pulse_count = 0;
+    encoder_state.last_dma_counter = DMA_BUFFER_SIZE; // DMA đếm ngược
     encoder_state.last_encoder_count = 0;
     encoder_state.total_encoder_ticks = 0;
     encoder_state.filtered_length_mm = 0.0f;
+    encoder_state.dma_half_complete = 0;
+    encoder_state.dma_full_complete = 0;
     encoder_state.initialized = true;
 }
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════
- * @brief Read and validate encoder hardware counter with noise rejection
+ * @brief Read pulse count from DMA and update encoder state
  * ═══════════════════════════════════════════════════════════════════════════════
  * 
- * PROBLEM ANALYSIS:
+ * INPUT CAPTURE + DMA OPERATION:
  * ─────────────────────────────────────────────────────────────────────────────
- * 1. TIM_ENCODERMODE_TI1 still uses CH2 for direction → noise on CH2 causes
- *    random up/down counting even though we only have 1-channel encoder
+ * 1. DMA tự động lưu giá trị CCR1 vào buffer mỗi khi có cạnh xuống
+ * 2. DMA counter (CNDTR) đếm ngược từ DMA_BUFFER_SIZE → 0
+ * 3. Khi CNDTR = 0, DMA tự động reset về DMA_BUFFER_SIZE (circular mode)
+ * 4. Software đọc CNDTR để tính số xung mới
  * 
- * 2. Counter can jump up/down unpredictably → negative values appear
- * 
- * 3. Hardware filter (IC1Filter=5) helps but not enough for noisy environments
- * 
- * SOLUTION:
+ * PULSE COUNTING ALGORITHM:
  * ─────────────────────────────────────────────────────────────────────────────
- * 1. Treat hardware counter as ABSOLUTE position (ignore hardware direction)
- * 2. Calculate delta as UNSIGNED difference (always positive)
- * 3. Use Motor_Direction to determine actual movement direction
- * 4. Apply software noise filtering:
- *    - Reject unreasonably large jumps (>MAX_DELTA_PER_CYCLE)
- *    - Ignore very small changes (<NOISE_THRESHOLD_TICKS)
- * 5. Auto-reset counter before Modbus int16 overflow (>32000)
+ * - DMA counter giảm mỗi khi có xung: 100 → 99 → 98 → ...
+ * - Số xung mới = last_dma_counter - current_dma_counter
+ * - Nếu DMA wrapped (current > last): xung = last + (DMA_BUFFER_SIZE - current)
+ * 
+ * ADVANTAGES:
+ * ─────────────────────────────────────────────────────────────────────────────
+ * ✅ Không bị mất xung khi CPU bận (DMA hoạt động độc lập)
+ * ✅ Không cần polling liên tục (chỉ đọc khi cần)
+ * ✅ Chính xác cao (hardware capture timestamp)
+ * ✅ Giảm tải CPU (DMA xử lý tự động)
  * 
  * ═══════════════════════════════════════════════════════════════════════════════
  */
@@ -160,84 +190,71 @@ void Encoder_Read(Encoder_t* encoder){
     // Handle manual reset request
     // ───────────────────────────────────────────────────────────────────────────
     if(encoder->Encoder_Reset == true){
-        __HAL_TIM_SET_COUNTER(&htim2, 0);
         encoder->Encoder_Count = 0;
         encoder->Encoder_Reset = 0;
         
-        // Reset tracking state to prevent large delta on next read
-        encoder_state.last_hardware_count = 0;
-        encoder_state.stable_count = 0;
+        // Reset tracking state
+        encoder_state.pulse_count = 0;
+        encoder_state.last_dma_counter = __HAL_DMA_GET_COUNTER(htim2.hdma[TIM_DMA_ID_CC1]);
         encoder_state.total_encoder_ticks = 0;
         
         return;  // Skip processing this cycle
     }
     
     // ───────────────────────────────────────────────────────────────────────────
-    // Read raw hardware counter (16-bit: 0-65535)
+    // Read DMA counter (số phần tử còn lại trong buffer)
     // ───────────────────────────────────────────────────────────────────────────
-    uint16_t raw_count = __HAL_TIM_GET_COUNTER(&htim2);
+    // DMA counter đếm ngược: DMA_BUFFER_SIZE → 0
+    // Khi = 0, tự động reset về DMA_BUFFER_SIZE (circular mode)
+    
+    uint32_t current_dma_counter = __HAL_DMA_GET_COUNTER(htim2.hdma[TIM_DMA_ID_CC1]);
     
     // ───────────────────────────────────────────────────────────────────────────
-    // Calculate UNSIGNED delta (always positive increment)
+    // Calculate number of new pulses
     // ───────────────────────────────────────────────────────────────────────────
-    // Since we're treating counter as absolute position, we only care about
-    // how much it increased, not whether hardware thinks it went up or down
+    uint32_t new_pulses = 0;
     
-    uint16_t delta_abs = 0;
-    bool counter_wrapped = false;
-    
-    if (raw_count >= encoder_state.last_hardware_count) {
-        // Normal case: counter increased
-        delta_abs = raw_count - encoder_state.last_hardware_count;
-    } else {
-        // Counter wrapped around (overflow or auto-reset)
-        // Assume it wrapped from 65535→0 or from AUTO_RESET_THRESHOLD→0
-        delta_abs = raw_count;  // Just use the new value as delta
-        counter_wrapped = true;
+    if(current_dma_counter <= encoder_state.last_dma_counter){
+        // Normal case: DMA counter decreased
+        new_pulses = encoder_state.last_dma_counter - current_dma_counter;
+    }
+    else{
+        // DMA wrapped around: 0 → DMA_BUFFER_SIZE
+        new_pulses = encoder_state.last_dma_counter + (DMA_BUFFER_SIZE - current_dma_counter);
         encoder_state.overflow_count++;
     }
     
     // ───────────────────────────────────────────────────────────────────────────
     // NOISE REJECTION: Filter out unrealistic jumps
     // ───────────────────────────────────────────────────────────────────────────
-    // If delta is too large, it's likely noise or a glitch - reject it
-    
-    if (delta_abs > MAX_DELTA_PER_CYCLE && !counter_wrapped) {
-        // Reject this reading - keep previous value
+    if (new_pulses > MAX_DELTA_PER_CYCLE) {
+        // Too many pulses in one cycle - likely error
         encoder_state.noise_reject_count++;
-        return;  // Don't update anything
+        return;  // Don't update
     }
     
     // ───────────────────────────────────────────────────────────────────────────
-    // NOISE REJECTION: Ignore tiny changes (likely electrical noise)
+    // NOISE REJECTION: Ignore tiny changes
     // ───────────────────────────────────────────────────────────────────────────
-    
-    if (delta_abs < NOISE_THRESHOLD_TICKS && delta_abs > 0) {
-        // Too small to be real movement - likely noise
+    if (new_pulses < NOISE_THRESHOLD_TICKS && new_pulses > 0) {
         encoder_state.noise_reject_count++;
-        return;  // Keep previous value
+        return;
     }
     
     // ───────────────────────────────────────────────────────────────────────────
-    // Valid reading - update state
+    // Update pulse count
     // ───────────────────────────────────────────────────────────────────────────
+    encoder_state.pulse_count += new_pulses;
+    encoder_state.last_dma_counter = current_dma_counter;
     
-    encoder_state.last_hardware_count = raw_count;
-    encoder_state.stable_count = raw_count;
-    encoder->Encoder_Count = raw_count;
+    // Update encoder count (with auto-reset for Modbus compatibility)
+    encoder->Encoder_Count = (uint16_t)(encoder_state.pulse_count % AUTO_RESET_THRESHOLD);
     
     // ───────────────────────────────────────────────────────────────────────────
-    // AUTO-RESET: Prevent Modbus int16 overflow
+    // AUTO-RESET: Prevent overflow in internal counter
     // ───────────────────────────────────────────────────────────────────────────
-    // Modbus uses signed int16 (-32768 to +32767)
-    // If counter exceeds 32000, reset it to prevent negative values in Modbus
-    
-    if(raw_count >= AUTO_RESET_THRESHOLD){
-        __HAL_TIM_SET_COUNTER(&htim2, 0);
-        encoder->Encoder_Count = 0;
-        encoder_state.last_hardware_count = 0;
-        encoder_state.stable_count = 0;
-        // Note: Don't reset total_encoder_ticks - it tracks cumulative position
+    if(encoder_state.pulse_count >= AUTO_RESET_THRESHOLD){
+        encoder_state.pulse_count = 0;
     }
 }
 
@@ -246,9 +263,12 @@ void Encoder_Write(Encoder_t* encoder, uint16_t value){
 }
 
 void Encoder_Reset(Encoder_t* encoder){
-    __HAL_TIM_SET_COUNTER(&htim2, 0);
     encoder->Encoder_Count = 0;
     encoder->Encoder_Calib_Current_Length_CM = 0;
+    
+    // Reset DMA state
+    encoder_state.pulse_count = 0;
+    encoder_state.last_dma_counter = __HAL_DMA_GET_COUNTER(htim2.hdma[TIM_DMA_ID_CC1]);
     
     // ✅ Reset wire length calculation để tránh tính toán sai
     Encoder_ResetWireLength(encoder);
@@ -417,20 +437,20 @@ void Encoder_Process(Encoder_t* encoder){
 uint16_t Encoder_MeasureLength(Encoder_t* encoder) {
     
     // ───────────────────────────────────────────────────────────────────────────
-    // STEP 1: Calculate encoder count delta (UNSIGNED)
+    // STEP 1: Calculate encoder count delta from pulse count
     // ───────────────────────────────────────────────────────────────────────────
-    // Use stable_count which has already been noise-filtered in Encoder_Read()
+    // pulse_count đã được cập nhật bởi Encoder_Read() từ DMA
     
-    uint16_t current_count = encoder_state.stable_count;
-    uint16_t last_count = encoder_state.last_encoder_count;  // ✅ FIX: Use separate variable
-    uint16_t delta_abs = 0;
+    uint32_t current_count = encoder_state.pulse_count;
+    uint16_t last_count = encoder_state.last_encoder_count;
+    uint32_t delta_abs = 0;
     
-    // Calculate unsigned delta (counter only increases)
+    // Calculate unsigned delta
     if (current_count >= last_count) {
         delta_abs = current_count - last_count;
     } else {
-        // Counter wrapped (auto-reset or overflow)
-        delta_abs = current_count;  // Use new value as delta
+        // Counter wrapped (auto-reset)
+        delta_abs = current_count + (AUTO_RESET_THRESHOLD - last_count);
     }
     
     // Skip if no movement detected
@@ -521,7 +541,7 @@ uint16_t Encoder_MeasureLength(Encoder_t* encoder) {
     // STEP 6: Update last_encoder_count for next delta calculation
     // ───────────────────────────────────────────────────────────────────────────
     // ✅ CRITICAL: Update AFTER all calculations are done
-    encoder_state.last_encoder_count = current_count;
+    encoder_state.last_encoder_count = (uint16_t)current_count;
     
     // Return filtered result in millimeters
     return (uint16_t)encoder_state.filtered_length_mm;
@@ -543,8 +563,7 @@ uint16_t Encoder_MeasureLength(Encoder_t* encoder) {
 void Encoder_ResetWireLength(Encoder_t* encoder){
     encoder_state.unrolled_length_mm = 0.0f;
     encoder_state.current_radius_mm = SPOOL_RADIUS_FULL_MM;
-    encoder_state.last_hardware_count = encoder_state.stable_count;
-    encoder_state.last_encoder_count = encoder_state.stable_count;  // ✅ FIX: Reset both
+    encoder_state.last_encoder_count = (uint16_t)encoder_state.pulse_count;
     encoder_state.total_encoder_ticks = 0;
     encoder_state.filtered_length_mm = 0.0f;
     
@@ -591,8 +610,7 @@ void Encoder_SetWireLength(Encoder_t* encoder, float length_mm){
     }
     
     // Sync last encoder count to prevent jumps on next read
-    encoder_state.last_hardware_count = encoder_state.stable_count;
-    encoder_state.last_encoder_count = encoder_state.stable_count;  // ✅ FIX: Sync both
+    encoder_state.last_encoder_count = (uint16_t)encoder_state.pulse_count;
 }
 
 /**
@@ -646,13 +664,48 @@ uint32_t Encoder_GetOverflowCount(void){
 }
 
 /**
+ * @brief Get DMA Half Complete count
+ * 
+ * Returns the number of times DMA half-transfer callback was triggered.
+ * 
+ * @return Number of DMA half-complete events
+ */
+uint32_t Encoder_GetDMAHalfComplete(void){
+    return encoder_state.dma_half_complete;
+}
+
+/**
+ * @brief Get DMA Full Complete count
+ * 
+ * Returns the number of times DMA full-transfer callback was triggered.
+ * 
+ * @return Number of DMA full-complete events
+ */
+uint32_t Encoder_GetDMAFullComplete(void){
+    return encoder_state.dma_full_complete;
+}
+
+/**
+ * @brief Get current pulse count
+ * 
+ * Returns the current accumulated pulse count from DMA.
+ * 
+ * @return Current pulse count
+ */
+uint32_t Encoder_GetPulseCount(void){
+    return encoder_state.pulse_count;
+}
+
+/**
  * @brief Reset diagnostic counters
  * 
- * Resets noise rejection and overflow counters for fresh statistics.
+ * Resets noise rejection, overflow, and DMA counters for fresh statistics.
  */
 void Encoder_ResetDiagnostics(void){
     encoder_state.noise_reject_count = 0;
     encoder_state.overflow_count = 0;
+    encoder_state.dma_half_complete = 0;
+    encoder_state.dma_full_complete = 0;
 }
 
 void Encoder_Check_Calib_Origin(Encoder_t* encoder){
@@ -673,5 +726,35 @@ void Encoder_Process_Calib(Encoder_t* encoder){
     }
     else{
         encoder->Encoder_Calib_Status = false;
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DMA CALLBACKS (Optional - for diagnostics)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * @brief DMA Half Transfer Complete callback
+ * 
+ * Được gọi khi DMA đã lưu DMA_BUFFER_SIZE/2 xung vào buffer
+ * Có thể dùng để xử lý dữ liệu nửa đầu buffer trong khi DMA ghi nửa sau
+ */
+void HAL_TIM_IC_CaptureHalfCpltCallback(TIM_HandleTypeDef *htim){
+    if(htim->Instance == TIM2){
+        encoder_state.dma_half_complete++;
+        // Có thể xử lý dữ liệu ở đây nếu cần
+    }
+}
+
+/**
+ * @brief DMA Transfer Complete callback
+ * 
+ * Được gọi khi DMA đã lưu đầy buffer (DMA_BUFFER_SIZE xung)
+ * DMA tự động quay về đầu buffer (circular mode)
+ */
+void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim){
+    if(htim->Instance == TIM2){
+        encoder_state.dma_full_complete++;
+        // Có thể xử lý dữ liệu ở đây nếu cần
     }
 }

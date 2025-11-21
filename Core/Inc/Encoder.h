@@ -39,6 +39,9 @@ float Encoder_GetCurrentRadius(void);
 int32_t Encoder_GetTotalTicks(void);
 uint32_t Encoder_GetNoiseRejectCount(void);
 uint32_t Encoder_GetOverflowCount(void);
+uint32_t Encoder_GetDMAHalfComplete(void);
+uint32_t Encoder_GetDMAFullComplete(void);
+uint32_t Encoder_GetPulseCount(void);
 void Encoder_ResetDiagnostics(void);
 
 #endif
