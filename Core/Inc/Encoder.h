@@ -5,7 +5,7 @@
 #include "main.h"
 #include "stdbool.h"
 typedef struct {
-    uint16_t Encoder_Count;                //Quantity of pulses
+    uint16_t volatile Encoder_Count;                //Quantity of pulses
     uint16_t Encoder_Config;               //Configuration of encoder
     uint16_t Encoder_Reset;                //Reset encoder flag
     uint16_t Encoder_Calib_Sensor_Status;  //
@@ -35,5 +35,10 @@ void Encoder_ResetWireLength(Encoder_t* encoder);
 void Encoder_SetWireLength(Encoder_t* encoder, float length_mm);
 float Encoder_GetCurrentRadius(void);
 
+// Diagnostic functions
+int32_t Encoder_GetTotalTicks(void);
+uint32_t Encoder_GetNoiseRejectCount(void);
+uint32_t Encoder_GetOverflowCount(void);
+void Encoder_ResetDiagnostics(void);
 
 #endif

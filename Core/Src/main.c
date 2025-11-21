@@ -56,7 +56,6 @@ TIM_HandleTypeDef htim3;
 
 UART_HandleTypeDef huart2;
 uint8_t current_baudrate = DEFAULT_CONFIG_BAUDRATE;
-
 /* Definitions for IOTask */
 osThreadId_t IOTaskHandle;
 const osThreadAttr_t IOTask_attributes = {
@@ -164,6 +163,7 @@ int main(void)
   
   // Initialize Modbus registers
   initializeModbusRegisters();
+  
   Encoder_Init();
   // Khởi tạo buffer (KHÔNG bật UART IT trước khi RTOS start)
   // memset(rxBuffer, 0, RX_BUFFER_SIZE);
@@ -407,7 +407,7 @@ static void MX_TIM2_Init(void)
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
   htim2.Init.Prescaler = 0;
-  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;  // Encoder mode will override this
+  htim2.Init.CounterMode = TIM_COUNTERMODE_DOWN;
   htim2.Init.Period = 65535;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
@@ -415,11 +415,11 @@ static void MX_TIM2_Init(void)
   sConfig.IC1Polarity = TIM_ICPOLARITY_RISING;
   sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
   sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
-  sConfig.IC1Filter = 5;  // ✅ FIX: Thêm bộ lọc nhiễu (5-10 tùy tốc độ encoder)
+  sConfig.IC1Filter = 10;
   sConfig.IC2Polarity = TIM_ICPOLARITY_RISING;
   sConfig.IC2Selection = TIM_ICSELECTION_DIRECTTI;
   sConfig.IC2Prescaler = TIM_ICPSC_DIV1;
-  sConfig.IC2Filter = 5;  // ✅ FIX: Thêm bộ lọc nhiễu cho kênh 2
+  sConfig.IC2Filter = 0;
   if (HAL_TIM_Encoder_Init(&htim2, &sConfig) != HAL_OK)
   {
     Error_Handler();

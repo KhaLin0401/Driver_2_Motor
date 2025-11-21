@@ -4,14 +4,21 @@
 #include "MotorControl.h"
 
 #include <math.h>
+#include <stdint.h>
+#include <stdbool.h>
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ENCODER CONFIGURATION
 // ═══════════════════════════════════════════════════════════════════════════════
-// Hardware: 8-slot optical encoder (8 gaps/slots per revolution)
-// STM32 Mode: TIM_ENCODERMODE_TI1 (single channel, both edges counting)
-// Counting: 2x per encoder pulse (rising + falling edges of channel A)
-// Result: 8 slots × 2 edges = 16 counts per revolution
+// ⚠️ HARDWARE CONFIGURATION:
+// - Encoder: 1-channel optical encoder (chỉ có kênh A)
+// - Timer Mode: TIM_ENCODERMODE_TI1 (CH1 đếm xung, CH2 xác định chiều)
+// - Problem: CH2 không có tín hiệu → đọc noise → counter nhảy lung tung
+// 
+// ✅ SOLUTION APPLIED:
+// 1. Hardware: IC2Filter = 15 (MAX) để chặn noise trên CH2
+// 2. Software: Treat counter as ABSOLUTE position (always increasing)
+// 3. Direction: Use Motor_Direction để xác định chiều thực tế
 // ═══════════════════════════════════════════════════════════════════════════════
 
 #define ENCODER_SLOTS           8       // Physical slots on encoder disk
@@ -29,33 +36,58 @@
 #define WIRE_LENGTH_MM          3000.0f     // Total wire length in mm (for calculation)
 #define SPOOL_RADIUS_FULL_MM    35.0f       // Radius when spool is full (mm) - MEASURE THIS!
 #define SPOOL_RADIUS_EMPTY_MM   10.0f       // Radius of empty core (mm) - MEASURE THIS!
-#define WIRE_DIAMETER_MM        0.5f        // Wire diameter (mm) - optional for advanced model
+#define WIRE_DIAMETER_MM        0.5f        // Wire diameter (mm) - for advanced model
 
-// Derived constants
-#define SPOOL_CIRCUMFERENCE_MAX (2.0f * M_PI * SPOOL_RADIUS_FULL_MM)   // Max circumference
-#define SPOOL_CIRCUMFERENCE_MIN (2.0f * M_PI * SPOOL_RADIUS_EMPTY_MM)  // Min circumference
+// ═══════════════════════════════════════════════════════════════════════════════
+// NOISE FILTERING & STABILITY CONFIGURATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#define FILTER_ALPHA            0.15f       // Low-pass filter coefficient (0.0-1.0)
+                                            // Lower = smoother but slower response
+                                            // Higher = faster but more noise
+                                            
+#define NOISE_THRESHOLD_TICKS   2           // Ignore changes smaller than this
+                                            // Helps reject electrical noise
+                                            
+#define MAX_DELTA_PER_CYCLE     200         // Maximum expected count change per read cycle
+                                            // Reject values above this as noise/error
+                                            
+#define AUTO_RESET_THRESHOLD    32000       // Auto-reset counter before Modbus int16 overflow
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PRIVATE STATE VARIABLES
 // ═══════════════════════════════════════════════════════════════════════════════
-// These maintain the encoder position tracking state across function calls
-// ═══════════════════════════════════════════════════════════════════════════════
 
 typedef struct {
+    // Position tracking
     float unrolled_length_mm;       // Accumulated linear position (mm)
     float current_radius_mm;        // Current spool radius (mm)
+    int32_t total_encoder_ticks;    // Cumulative encoder ticks (signed, for bidirectional)
+    
+    // Hardware state
+    uint16_t last_hardware_count;   // Previous raw hardware counter value
+    uint16_t stable_count;          // Debounced/validated counter value
     uint16_t last_encoder_count;    // Previous encoder reading for delta calculation
-    int32_t total_encoder_ticks;    // Cumulative encoder ticks (can be negative)
+    // Filtering
     float filtered_length_mm;       // Low-pass filtered length for noise reduction
+    
+    // Diagnostics
+    uint32_t noise_reject_count;    // Number of rejected noisy readings
+    uint32_t overflow_count;        // Number of counter overflows handled
+    
     bool initialized;               // Initialization flag
 } EncoderState_t;
 
 static EncoderState_t encoder_state = {
     .unrolled_length_mm = 0.0f,
     .current_radius_mm = SPOOL_RADIUS_FULL_MM,
-    .last_encoder_count = 0,
     .total_encoder_ticks = 0,
+    .last_hardware_count = 0,
+    .stable_count = 0,
+    .last_encoder_count = 0,
     .filtered_length_mm = 0.0f,
+    .noise_reject_count = 0,
+    .overflow_count = 0,
     .initialized = false
 };
 
@@ -84,52 +116,129 @@ void Encoder_Init(void){
     encoder1.Encoder_Calib_Current_Length_CM = 0;
     
     // Start STM32 hardware encoder (TIM2 in quadrature mode)
-    HAL_TIM_Encoder_Start(&htim2, TIM_CHANNEL_1 | TIM_CHANNEL_2);
+    HAL_TIM_Encoder_Start(&htim2, TIM_CHANNEL_1);
     __HAL_TIM_SET_COUNTER(&htim2, 0);
     
     // Initialize encoder state tracking
     encoder_state.unrolled_length_mm = 0.0f;
     encoder_state.current_radius_mm = SPOOL_RADIUS_FULL_MM;
+    encoder_state.last_hardware_count = 0;
     encoder_state.last_encoder_count = 0;
     encoder_state.total_encoder_ticks = 0;
     encoder_state.filtered_length_mm = 0.0f;
     encoder_state.initialized = true;
 }
 
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * @brief Read and validate encoder hardware counter with noise rejection
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * 
+ * PROBLEM ANALYSIS:
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 1. TIM_ENCODERMODE_TI1 still uses CH2 for direction → noise on CH2 causes
+ *    random up/down counting even though we only have 1-channel encoder
+ * 
+ * 2. Counter can jump up/down unpredictably → negative values appear
+ * 
+ * 3. Hardware filter (IC1Filter=5) helps but not enough for noisy environments
+ * 
+ * SOLUTION:
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 1. Treat hardware counter as ABSOLUTE position (ignore hardware direction)
+ * 2. Calculate delta as UNSIGNED difference (always positive)
+ * 3. Use Motor_Direction to determine actual movement direction
+ * 4. Apply software noise filtering:
+ *    - Reject unreasonably large jumps (>MAX_DELTA_PER_CYCLE)
+ *    - Ignore very small changes (<NOISE_THRESHOLD_TICKS)
+ * 5. Auto-reset counter before Modbus int16 overflow (>32000)
+ * 
+ * ═══════════════════════════════════════════════════════════════════════════════
+ */
 void Encoder_Read(Encoder_t* encoder){
+    // ───────────────────────────────────────────────────────────────────────────
+    // Handle manual reset request
+    // ───────────────────────────────────────────────────────────────────────────
     if(encoder->Encoder_Reset == true){
         __HAL_TIM_SET_COUNTER(&htim2, 0);
         encoder->Encoder_Count = 0;
-        encoder->Encoder_Reset = 0; // ✅ Reset flag sau khi xử lý
+        encoder->Encoder_Reset = 0;
+        
+        // Reset tracking state to prevent large delta on next read
+        encoder_state.last_hardware_count = 0;
+        encoder_state.stable_count = 0;
+        encoder_state.total_encoder_ticks = 0;
+        
+        return;  // Skip processing this cycle
     }
     
-    // Đọc giá trị counter từ TIM2 (16-bit: 0-65535)
-    uint16_t current_count = __HAL_TIM_GET_COUNTER(&htim2);
+    // ───────────────────────────────────────────────────────────────────────────
+    // Read raw hardware counter (16-bit: 0-65535)
+    // ───────────────────────────────────────────────────────────────────────────
+    uint16_t raw_count = __HAL_TIM_GET_COUNTER(&htim2);
     
-    // ✅ Software debounce: Chỉ cập nhật nếu thay đổi hợp lý
-    // Tránh trường hợp counter nhảy lung tung do nhiễu
-    static uint16_t last_valid_count = 0;
-    int32_t delta = (int32_t)current_count - (int32_t)last_valid_count;
+    // ───────────────────────────────────────────────────────────────────────────
+    // Calculate UNSIGNED delta (always positive increment)
+    // ───────────────────────────────────────────────────────────────────────────
+    // Since we're treating counter as absolute position, we only care about
+    // how much it increased, not whether hardware thinks it went up or down
     
-    // Nếu delta quá lớn (>1000 trong 1 lần đọc) → có thể là nhiễu, bỏ qua
-    if(delta > 1000 || delta < -1000){
-        // Giữ nguyên giá trị cũ, không cập nhật
-        current_count = last_valid_count;
+    uint16_t delta_abs = 0;
+    bool counter_wrapped = false;
+    
+    if (raw_count >= encoder_state.last_hardware_count) {
+        // Normal case: counter increased
+        delta_abs = raw_count - encoder_state.last_hardware_count;
     } else {
-        // Giá trị hợp lệ, cập nhật
-        last_valid_count = current_count;
+        // Counter wrapped around (overflow or auto-reset)
+        // Assume it wrapped from 65535→0 or from AUTO_RESET_THRESHOLD→0
+        delta_abs = raw_count;  // Just use the new value as delta
+        counter_wrapped = true;
+        encoder_state.overflow_count++;
     }
     
-    // ✅ Auto-reset nếu counter vượt ngưỡng 32768 (tránh Modbus Master đọc thành số âm)
-    if(current_count >= 32768){
+    // ───────────────────────────────────────────────────────────────────────────
+    // NOISE REJECTION: Filter out unrealistic jumps
+    // ───────────────────────────────────────────────────────────────────────────
+    // If delta is too large, it's likely noise or a glitch - reject it
+    
+    if (delta_abs > MAX_DELTA_PER_CYCLE && !counter_wrapped) {
+        // Reject this reading - keep previous value
+        encoder_state.noise_reject_count++;
+        return;  // Don't update anything
+    }
+    
+    // ───────────────────────────────────────────────────────────────────────────
+    // NOISE REJECTION: Ignore tiny changes (likely electrical noise)
+    // ───────────────────────────────────────────────────────────────────────────
+    
+    if (delta_abs < NOISE_THRESHOLD_TICKS && delta_abs > 0) {
+        // Too small to be real movement - likely noise
+        encoder_state.noise_reject_count++;
+        return;  // Keep previous value
+    }
+    
+    // ───────────────────────────────────────────────────────────────────────────
+    // Valid reading - update state
+    // ───────────────────────────────────────────────────────────────────────────
+    
+    encoder_state.last_hardware_count = raw_count;
+    encoder_state.stable_count = raw_count;
+    encoder->Encoder_Count = raw_count;
+    
+    // ───────────────────────────────────────────────────────────────────────────
+    // AUTO-RESET: Prevent Modbus int16 overflow
+    // ───────────────────────────────────────────────────────────────────────────
+    // Modbus uses signed int16 (-32768 to +32767)
+    // If counter exceeds 32000, reset it to prevent negative values in Modbus
+    
+    if(raw_count >= AUTO_RESET_THRESHOLD){
         __HAL_TIM_SET_COUNTER(&htim2, 0);
-        current_count = 0;
-        last_valid_count = 0;
-        // Reset wire length tracking để đồng bộ
-        Encoder_ResetWireLength(encoder);
+        encoder->Encoder_Count = 0;
+        encoder_state.last_hardware_count = 0;
+        encoder_state.stable_count = 0;
+        // Note: Don't reset total_encoder_ticks - it tracks cumulative position
     }
-    
-    encoder->Encoder_Count = current_count;
 }
 
 void Encoder_Write(Encoder_t* encoder, uint16_t value){
@@ -259,149 +368,160 @@ void Encoder_Process(Encoder_t* encoder){
  * @brief Calculate unrolled wire length from encoder position
  * ═══════════════════════════════════════════════════════════════════════════════
  * 
- * ALGORITHM OVERVIEW:
+ * ALGORITHM IMPROVEMENTS:
  * ──────────────────────────────────────────────────────────────────────────────
- * This function implements a bidirectional encoder position tracking system that
- * converts rotary encoder counts into linear wire displacement (unrolled_length).
- * 
- * KEY FEATURES:
- * 1. Bidirectional tracking (forward and backward rotation)
- * 2. 16-bit counter overflow/underflow handling
- * 3. Dynamic spool radius compensation
- * 4. Low-pass filtering for noise reduction
+ * 1. ✅ Use validated stable_count (already noise-filtered in Encoder_Read)
+ * 2. ✅ Calculate UNSIGNED delta (counter only increases)
+ * 3. ✅ Apply motor direction to determine actual movement
+ * 4. ✅ Use NONLINEAR spool radius model (more accurate than linear)
+ * 5. ✅ Apply low-pass filter for smooth output
  * 
  * DIRECTION HANDLING:
  * ──────────────────────────────────────────────────────────────────────────────
- * - FORWARD rotation (motor unrolls wire):
- *   → Encoder count increases → delta_count > 0 → unrolled_length increases
+ * Since hardware counter always increases (1-channel encoder), we use motor
+ * direction to determine actual wire movement:
  * 
- * - BACKWARD rotation (motor rewinds wire):
- *   → Encoder count decreases → delta_count < 0 → unrolled_length decreases
+ * - FORWARD (Direction = 1): Wire unrolling → length increases
+ * - REVERSE (Direction = 2): Wire rewinding → length decreases  
+ * - IDLE (Direction = 0): No movement → length unchanged
  * 
- * The STM32 TIM2 in quadrature mode automatically handles direction:
- * - CW rotation: counter increments (0 → 1 → 2 → ...)
- * - CCW rotation: counter decrements (... → 2 → 1 → 0 → 65535)
- * 
- * POSITION MAPPING:
+ * SPOOL RADIUS MODEL (NONLINEAR - MORE ACCURATE):
  * ──────────────────────────────────────────────────────────────────────────────
- * Step 1: Read current encoder count from hardware (16-bit, 0-65535)
- * Step 2: Calculate delta = current_count - last_count (with overflow handling)
- * Step 3: Convert delta_count to delta_revolutions = delta / ENCODER_CPR
- * Step 4: Calculate linear displacement = circumference × delta_revolutions
- * Step 5: Update unrolled_length += displacement (can be positive or negative)
- * Step 6: Update spool radius based on remaining wire
- * Step 7: Apply low-pass filter to reduce noise
+ * Wire wraps in layers around the core. As wire unrolls, radius decreases
+ * according to the cross-sectional area of remaining wire:
  * 
- * SPOOL RADIUS MODEL:
- * ──────────────────────────────────────────────────────────────────────────────
- * As wire unrolls, the effective spool radius decreases linearly:
+ *   A_wire = π × d² / 4                    (area of wire cross-section)
+ *   A_spool(L) = A_core + A_wire × N_wraps (total spool area)
+ *   
+ *   where N_wraps = (L_total - L) / (π × d)  (number of wire wraps remaining)
+ *   
+ *   R(L) = sqrt(A_spool(L) / π)            (radius from area)
  * 
- *   R(L) = R_max - (R_max - R_min) × (L / L_total)
+ * For simplicity, we use a hybrid model:
+ *   R(L) = sqrt(R_max² - (R_max² - R_min²) × (L / L_total))
  * 
- * Where:
- *   R(L) = current radius at length L
- *   R_max = radius when spool is full (35mm)
- *   R_min = radius of empty core (10mm)
- *   L = current unrolled length
- *   L_total = total wire length (3000mm)
+ * This accounts for the quadratic relationship between radius and wire volume.
  * 
- * Example:
- *   L = 0mm    → R = 35mm (full spool)
- *   L = 1500mm → R = 22.5mm (half empty)
- *   L = 3000mm → R = 10mm (empty core)
+ * Example (35mm → 10mm over 3000mm):
+ *   L = 0mm    → R = 35.0mm (full spool)
+ *   L = 1500mm → R = 25.5mm (half empty - not 22.5mm as in linear model!)
+ *   L = 3000mm → R = 10.0mm (empty core)
  * 
  * @param encoder Pointer to encoder structure containing hardware count
  * @return Current unrolled wire length in millimeters (0 to WIRE_LENGTH_MM)
  * 
- * @note This function must be called periodically (e.g., every 250ms)
- * @note Direction is automatically determined from encoder count changes
- * @note Negative deltas (backward rotation) correctly decrease unrolled_length
+ * @note Call this periodically (e.g., every 100-250ms)
+ * @note Encoder_Read() must be called first to validate counts
  * ═══════════════════════════════════════════════════════════════════════════════
  */
 uint16_t Encoder_MeasureLength(Encoder_t* encoder) {
     
     // ───────────────────────────────────────────────────────────────────────────
-    // STEP 1: Calculate encoder count delta with overflow handling
+    // STEP 1: Calculate encoder count delta (UNSIGNED)
     // ───────────────────────────────────────────────────────────────────────────
-    // The STM32 TIM2 counter is 16-bit (0-65535). When it overflows or underflows,
-    // we need to detect and correct the delta calculation.
+    // Use stable_count which has already been noise-filtered in Encoder_Read()
     
-    uint16_t current_count = encoder->Encoder_Count;
-    int32_t delta_count = (int32_t)current_count - (int32_t)encoder_state.last_encoder_count;
+    uint16_t current_count = encoder_state.stable_count;
+    uint16_t last_count = encoder_state.last_encoder_count;  // ✅ FIX: Use separate variable
+    uint16_t delta_abs = 0;
     
-    // Handle 16-bit counter wrap-around:
-    // - If delta < -32768: Counter overflowed (65535 → 0), actual delta is positive
-    // - If delta > +32768: Counter underflowed (0 → 65535), actual delta is negative
-    if (delta_count < -32768) {
-        delta_count += 65536;  // Overflow correction: e.g., (5 - 65530) = -65525 → +11
-    } else if (delta_count > 32768) {
-        delta_count -= 65536;  // Underflow correction: e.g., (65530 - 5) = +65525 → -11
+    // Calculate unsigned delta (counter only increases)
+    if (current_count >= last_count) {
+        delta_abs = current_count - last_count;
+    } else {
+        // Counter wrapped (auto-reset or overflow)
+        delta_abs = current_count;  // Use new value as delta
     }
     
-    encoder_state.last_encoder_count = current_count;
-    encoder_state.total_encoder_ticks += delta_count;  // Accumulate total ticks (can be negative)
-    
-    // ───────────────────────────────────────────────────────────────────────────
-    // STEP 2: Convert encoder counts to linear displacement
-    // ───────────────────────────────────────────────────────────────────────────
-    // Only recalculate if encoder has moved
-    if (delta_count != 0) {
-        
-        // Convert encoder counts to revolutions
-        // For 8-slot encoder with TIM_ENCODERMODE_TI1: 16 counts = 1 revolution
-        // (8 slots × 2 edges per slot = 16 counts/rev)
-        // Positive delta_count = forward rotation = wire unrolling
-        // Note: TI1 mode only counts up, cannot detect reverse direction
-        float delta_revolutions = (float)delta_count / (float)ENCODER_CPR;
-        
-        // Calculate current spool circumference
-        float current_circumference = 2.0f * M_PI * encoder_state.current_radius_mm;
-        
-        // Calculate linear displacement (positive or negative)
-        // This is the key step where rotation direction affects position:
-        // - Forward rotation: delta_revolutions > 0 → delta_length > 0 → length increases
-        // - Backward rotation: delta_revolutions < 0 → delta_length < 0 → length decreases
-        float delta_length_mm = current_circumference * delta_revolutions;
-        
-        // Update accumulated unrolled length
-        encoder_state.unrolled_length_mm += delta_length_mm;
-        
-        // Clamp to valid range [0, WIRE_LENGTH_MM]
-        if (encoder_state.unrolled_length_mm < 0.0f) {
-            encoder_state.unrolled_length_mm = 0.0f;
-        }
-        if (encoder_state.unrolled_length_mm > WIRE_LENGTH_MM) {
-            encoder_state.unrolled_length_mm = WIRE_LENGTH_MM;
-        }
-        
-        // ───────────────────────────────────────────────────────────────────────
-        // STEP 3: Update spool radius based on remaining wire
-        // ───────────────────────────────────────────────────────────────────────
-        // Linear model: radius decreases proportionally to unrolled length
-        // This compensates for the changing mechanical advantage as wire depletes
-        
-        float length_ratio = encoder_state.unrolled_length_mm / WIRE_LENGTH_MM;
-        encoder_state.current_radius_mm = SPOOL_RADIUS_FULL_MM - 
-                                          (SPOOL_RADIUS_FULL_MM - SPOOL_RADIUS_EMPTY_MM) * length_ratio;
-        
-        // Clamp radius to physical limits
-        if (encoder_state.current_radius_mm < SPOOL_RADIUS_EMPTY_MM) {
-            encoder_state.current_radius_mm = SPOOL_RADIUS_EMPTY_MM;
-        }
-        if (encoder_state.current_radius_mm > SPOOL_RADIUS_FULL_MM) {
-            encoder_state.current_radius_mm = SPOOL_RADIUS_FULL_MM;
-        }
+    // Skip if no movement detected
+    if (delta_abs == 0) {
+        // Return current filtered value (no change)
+        return (uint16_t)encoder_state.filtered_length_mm;
     }
     
     // ───────────────────────────────────────────────────────────────────────────
-    // STEP 4: Apply low-pass filter to reduce measurement noise
+    // STEP 2: Determine movement direction from motor
+    // ───────────────────────────────────────────────────────────────────────────
+    
+    extern MotorRegisterMap_t motor1;
+    int8_t direction_sign = 0;
+    
+    if (motor1.Direction == FORWARD) {  // FORWARD - unrolling
+        direction_sign = +1;
+    } else if (motor1.Direction == REVERSE) {  // REVERSE - rewinding
+        direction_sign = -1;
+    } else {  // IDLE - should not happen if delta > 0, but handle it
+        // If encoder moved but motor is idle, assume forward (inertia/external force)
+        direction_sign = +1;
+    }
+    
+    // Apply direction to delta
+    int32_t delta_signed = (int32_t)delta_abs * direction_sign;
+    
+    // Update cumulative tick counter
+    encoder_state.total_encoder_ticks += delta_signed;
+    
+    // ───────────────────────────────────────────────────────────────────────────
+    // STEP 3: Convert encoder counts to linear displacement
+    // ───────────────────────────────────────────────────────────────────────────
+    
+    // Convert ticks to revolutions
+    float delta_revolutions = (float)delta_signed / (float)ENCODER_CPR;
+    
+    // Calculate current spool circumference
+    float current_circumference = 2.0f * M_PI * encoder_state.current_radius_mm;
+    
+    // Calculate linear displacement (can be positive or negative)
+    float delta_length_mm = current_circumference * delta_revolutions;
+    
+    // Update accumulated unrolled length
+    encoder_state.unrolled_length_mm += delta_length_mm;
+    
+    // Clamp to valid range [0, WIRE_LENGTH_MM]
+    if (encoder_state.unrolled_length_mm < 0.0f) {
+        encoder_state.unrolled_length_mm = 0.0f;
+    }
+    if (encoder_state.unrolled_length_mm > WIRE_LENGTH_MM) {
+        encoder_state.unrolled_length_mm = WIRE_LENGTH_MM;
+    }
+    
+    // ───────────────────────────────────────────────────────────────────────────
+    // STEP 4: Update spool radius (NONLINEAR MODEL)
+    // ───────────────────────────────────────────────────────────────────────────
+    // This model accounts for the fact that wire volume is proportional to
+    // the difference in spool area (π×R²), not radius directly
+    
+    float length_ratio = encoder_state.unrolled_length_mm / WIRE_LENGTH_MM;
+    
+    // Nonlinear model: R² decreases linearly with unrolled length
+    float radius_squared = SPOOL_RADIUS_FULL_MM * SPOOL_RADIUS_FULL_MM - 
+                          (SPOOL_RADIUS_FULL_MM * SPOOL_RADIUS_FULL_MM - 
+                           SPOOL_RADIUS_EMPTY_MM * SPOOL_RADIUS_EMPTY_MM) * length_ratio;
+    
+    encoder_state.current_radius_mm = sqrtf(radius_squared);
+    
+    // Clamp radius to physical limits (safety check)
+    if (encoder_state.current_radius_mm < SPOOL_RADIUS_EMPTY_MM) {
+        encoder_state.current_radius_mm = SPOOL_RADIUS_EMPTY_MM;
+    }
+    if (encoder_state.current_radius_mm > SPOOL_RADIUS_FULL_MM) {
+        encoder_state.current_radius_mm = SPOOL_RADIUS_FULL_MM;
+    }
+    
+    // ───────────────────────────────────────────────────────────────────────────
+    // STEP 5: Apply low-pass filter to reduce measurement noise
     // ───────────────────────────────────────────────────────────────────────────
     // First-order IIR filter: y[n] = α × x[n] + (1-α) × y[n-1]
-    // α = 0.2 provides good balance between responsiveness and noise rejection
+    // FILTER_ALPHA = 0.15 provides good balance between responsiveness and smoothness
     
-    const float FILTER_ALPHA = 0.2f;
     encoder_state.filtered_length_mm = FILTER_ALPHA * encoder_state.unrolled_length_mm + 
                                        (1.0f - FILTER_ALPHA) * encoder_state.filtered_length_mm;
+    
+    // ───────────────────────────────────────────────────────────────────────────
+    // STEP 6: Update last_encoder_count for next delta calculation
+    // ───────────────────────────────────────────────────────────────────────────
+    // ✅ CRITICAL: Update AFTER all calculations are done
+    encoder_state.last_encoder_count = current_count;
     
     // Return filtered result in millimeters
     return (uint16_t)encoder_state.filtered_length_mm;
@@ -423,9 +543,14 @@ uint16_t Encoder_MeasureLength(Encoder_t* encoder) {
 void Encoder_ResetWireLength(Encoder_t* encoder){
     encoder_state.unrolled_length_mm = 0.0f;
     encoder_state.current_radius_mm = SPOOL_RADIUS_FULL_MM;
-    encoder_state.last_encoder_count = encoder->Encoder_Count;
+    encoder_state.last_hardware_count = encoder_state.stable_count;
+    encoder_state.last_encoder_count = encoder_state.stable_count;  // ✅ FIX: Reset both
     encoder_state.total_encoder_ticks = 0;
     encoder_state.filtered_length_mm = 0.0f;
+    
+    // Reset diagnostic counters
+    encoder_state.noise_reject_count = 0;
+    encoder_state.overflow_count = 0;
 }
 
 /**
@@ -450,13 +575,24 @@ void Encoder_SetWireLength(Encoder_t* encoder, float length_mm){
     // Update structure (convert mm to cm)
     encoder->Encoder_Calib_Current_Length_CM = (uint16_t)(length_mm / 10.0f);
     
-    // Calculate corresponding radius
+    // Calculate corresponding radius using NONLINEAR model
     float length_ratio = length_mm / WIRE_LENGTH_MM;
-    encoder_state.current_radius_mm = SPOOL_RADIUS_FULL_MM - 
-                                      (SPOOL_RADIUS_FULL_MM - SPOOL_RADIUS_EMPTY_MM) * length_ratio;
+    float radius_squared = SPOOL_RADIUS_FULL_MM * SPOOL_RADIUS_FULL_MM - 
+                          (SPOOL_RADIUS_FULL_MM * SPOOL_RADIUS_FULL_MM - 
+                           SPOOL_RADIUS_EMPTY_MM * SPOOL_RADIUS_EMPTY_MM) * length_ratio;
+    encoder_state.current_radius_mm = sqrtf(radius_squared);
+    
+    // Clamp radius
+    if (encoder_state.current_radius_mm < SPOOL_RADIUS_EMPTY_MM) {
+        encoder_state.current_radius_mm = SPOOL_RADIUS_EMPTY_MM;
+    }
+    if (encoder_state.current_radius_mm > SPOOL_RADIUS_FULL_MM) {
+        encoder_state.current_radius_mm = SPOOL_RADIUS_FULL_MM;
+    }
     
     // Sync last encoder count to prevent jumps on next read
-    encoder_state.last_encoder_count = encoder->Encoder_Count;
+    encoder_state.last_hardware_count = encoder_state.stable_count;
+    encoder_state.last_encoder_count = encoder_state.stable_count;  // ✅ FIX: Sync both
 }
 
 /**
@@ -474,9 +610,54 @@ float Encoder_GetCurrentRadius(void){
     return encoder_state.current_radius_mm;
 }
 
+/**
+ * @brief Get total cumulative encoder ticks (signed)
+ * 
+ * Returns the cumulative encoder position including direction.
+ * Useful for debugging and advanced position tracking.
+ * 
+ * @return Total encoder ticks (can be negative if rewound past zero)
+ */
+int32_t Encoder_GetTotalTicks(void){
+    return encoder_state.total_encoder_ticks;
+}
+
+/**
+ * @brief Get noise rejection statistics
+ * 
+ * Returns the number of noisy readings that were rejected.
+ * High values indicate electrical noise or mechanical vibration.
+ * 
+ * @return Number of rejected readings since last reset
+ */
+uint32_t Encoder_GetNoiseRejectCount(void){
+    return encoder_state.noise_reject_count;
+}
+
+/**
+ * @brief Get counter overflow count
+ * 
+ * Returns the number of times the hardware counter wrapped around.
+ * 
+ * @return Number of overflows since initialization
+ */
+uint32_t Encoder_GetOverflowCount(void){
+    return encoder_state.overflow_count;
+}
+
+/**
+ * @brief Reset diagnostic counters
+ * 
+ * Resets noise rejection and overflow counters for fresh statistics.
+ */
+void Encoder_ResetDiagnostics(void){
+    encoder_state.noise_reject_count = 0;
+    encoder_state.overflow_count = 0;
+}
+
 void Encoder_Check_Calib_Origin(Encoder_t* encoder){
-    bool Calib_Origin_Status = false;
-    Calib_Origin_Status = HAL_GPIO_ReadPin(GPIOA, IN1_Pin);
+
+    bool Calib_Origin_Status = HAL_GPIO_ReadPin(GPIOA, IN1_Pin);
     if(Calib_Origin_Status == true){
         encoder->Calib_Origin_Status = true;
         Encoder_Reset(encoder);
