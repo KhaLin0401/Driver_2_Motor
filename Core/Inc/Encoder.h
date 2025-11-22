@@ -5,15 +5,23 @@
 #include "main.h"
 #include "stdbool.h"
 typedef struct {
-    uint16_t volatile Encoder_Count;                //Quantity of pulses
-    uint16_t Encoder_Config;               //Configuration of encoder
-    uint16_t Encoder_Reset;                //Reset encoder flag
-    uint16_t Encoder_Calib_Sensor_Status;  //
-    uint16_t Encoder_Calib_Length_CM_Max;    //Max distance of calibration 
-    uint16_t Encoder_Calib_Start;          //
-    uint16_t Encoder_Calib_Status;         //Status of calibration
-    uint16_t Encoder_Calib_Current_Length_CM;                //Current length of calibration
-    bool Calib_Origin_Status;              //Status of calibration origin
+    uint16_t Status_Word;                           // REG_ENCODER_STATUS_WORD (0x0040)
+    uint16_t volatile Encoder_Count;                // REG_ENCODER_COUNT (0x0041) - Quantity of pulses
+    uint16_t Revolutions;                           // REG_ENCODER_REVOLUTIONS (0x0042)
+    uint16_t Rmax;                                  // REG_ENCODER_RMAX (0x0043)
+    uint16_t Rmin;                                  // REG_ENCODER_RMIN (0x0044)
+    uint16_t Wire_Length_CM;                        // REG_ENCODER_WIRE_LENGTH_CM (0x0045)
+    uint16_t Encoder_Reset;                         // REG_ENCODER_RESET (0x0046) - Reset encoder flag
+    uint16_t Encoder_Calib_Length_CM_Max;           // REG_ENCODER_CALIB_WIRE_LENGTH_CM (0x0048) - Max distance of calibration
+    uint16_t Encoder_Calib_Status;                  // REG_ENCODER_CALIB_STATUS (0x004A) - Status of calibration
+    uint16_t Encoder_Calib_Current_Length_CM;       // REG_ENCODER_CALIB_CURRENT_LENGTH_CM (0x004B) - Current length of calibration
+    bool Calib_Origin_Status;                       // REG_ENCODER_CALIB_ORIGIN_STATUS (0x004C) - Status of calibration origin
+    uint16_t Unrolled_Wire_Length_CM;               // REG_ENCODER_UNROLLED_WIRE_LENGTH_CM (0x004D)
+    
+    // Internal fields (not mapped to Modbus)
+    uint16_t Encoder_Config;                        // Configuration of encoder
+    uint16_t Encoder_Calib_Sensor_Status;           // Calibration sensor status
+    uint16_t Encoder_Calib_Start;                   // Calibration start flag
 } Encoder_t;
 
 extern Encoder_t encoder1;

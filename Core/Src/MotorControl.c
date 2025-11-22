@@ -823,7 +823,7 @@ float PID_Compute_Position(uint8_t motor_id, float setpoint_cm, float feedback_c
     return raw_output;
 }
 void Motor_UpdatePosition(MotorRegisterMap_t* motor){
-    motor->Position_Current = encoder1.Encoder_Calib_Current_Length_CM;
+    motor->Position_Current = encoder1.Unrolled_Wire_Length_CM;
 }
 
 // Reset các lỗi nếu có

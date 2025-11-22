@@ -59,15 +59,7 @@
 #define REG_DI3_ASSIGNMENT         0x0023
 #define REG_DI4_ASSIGNMENT         0x0024
 #define REG_CURRENT                0x0025
-#define REG_M1_ENCODER_COUNT       0x0026
-#define REG_M1_ENCODER_CONFIG      0x0027
-#define REG_M1_ENCODER_RESET       0x0028
-#define REG_M1_CALIB_SENSOR_STATUS 0x0029
-#define REG_M1_CALIB_DISTANCE_CM   0x002A
-#define REG_M1_CALIB_START         0x002B
-#define REG_M1_CALIB_STATUS        0x002C
-#define REG_M1_UNROLLED_WIRE_LENGTH_CM   0x002D
-#define REG_M1_CALIB_ORIGIN_STATUS 0x002E
+
 
 // Digital Output Registers (Base Address: 0x0040)
 #define REG_DO_STATUS_WORD         0x0030
@@ -76,8 +68,21 @@
 #define REG_DO2_CONTROL            0x0033
 #define REG_DO2_ASSIGNMENT         0x0034
 
+// Encoder Registers (Base Address: 0x0040)
+#define REG_ENCODER_STATUS_WORD                 0x0040
+#define REG_ENCODER_COUNT                       0x0041
+#define REG_ENCODER_REVOLUTIONS                 0x0042
+#define REG_ENCODER_RMAX                        0x0043
+#define REG_ENCODER_RMIN                        0x0044
+#define REG_ENCODER_WIRE_LENGTH_CM              0x0045
+#define REG_ENCODER_RESET                       0x0046
+#define REG_ENCODER_CALIB_WIRE_LENGTH_CM        0x0048
+#define REG_ENCODER_CALIB_STATUS                0x004A
+#define REG_ENCODER_CALIB_CURRENT_LENGTH_CM     0x004B
+#define REG_ENCODER_CALIB_ORIGIN_STATUS         0x004C
+#define REG_ENCODER_UNROLLED_WIRE_LENGTH_CM     0x004D
 // Total register count
-#define TOTAL_HOLDING_REG_COUNT    0x0045  // Total number of registers
+#define TOTAL_HOLDING_REG_COUNT    0x004E  // Total number of registers
 
 // Default Values for System Registers
 #define DEFAULT_DEVICE_ID          3

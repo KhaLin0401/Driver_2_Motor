@@ -101,21 +101,26 @@ void initializeModbusRegisters(void) {
     g_holdingRegisters[REG_DI3_ASSIGNMENT] = 0;
     g_holdingRegisters[REG_DI4_ASSIGNMENT] = 0;
     g_holdingRegisters[REG_CURRENT] = DEFAULT_CURRENT;
-    g_holdingRegisters[REG_M1_ENCODER_COUNT] = 0;
-    g_holdingRegisters[REG_M1_ENCODER_CONFIG] = 100;
-    g_holdingRegisters[REG_M1_ENCODER_RESET] = 0;
-    g_holdingRegisters[REG_M1_CALIB_SENSOR_STATUS] = 0;
-    g_holdingRegisters[REG_M1_CALIB_DISTANCE_CM] = 300;
-    g_holdingRegisters[REG_M1_CALIB_START] = 0;
-    g_holdingRegisters[REG_M1_CALIB_STATUS] = 0;
-    g_holdingRegisters[REG_M1_UNROLLED_WIRE_LENGTH_CM] = 0;
-    g_holdingRegisters[REG_M1_CALIB_ORIGIN_STATUS] = 0;
     // Output Registers (0x0040-0x0044)  
     g_holdingRegisters[REG_DO_STATUS_WORD] = 0;
     g_holdingRegisters[REG_DO1_CONTROL] = 0;
     g_holdingRegisters[REG_DO1_ASSIGNMENT] = 0;
     g_holdingRegisters[REG_DO2_CONTROL] = 0;
     g_holdingRegisters[REG_DO2_ASSIGNMENT] = 0;
+
+    // Encoder Registers (0x0040-0x004D)
+    g_holdingRegisters[REG_ENCODER_STATUS_WORD] = 0;
+    g_holdingRegisters[REG_ENCODER_COUNT] = 0;
+    g_holdingRegisters[REG_ENCODER_REVOLUTIONS] = 8;
+    g_holdingRegisters[REG_ENCODER_RMAX] = 35;
+    g_holdingRegisters[REG_ENCODER_RMIN] = 20;
+    g_holdingRegisters[REG_ENCODER_WIRE_LENGTH_CM] = 300;
+    g_holdingRegisters[REG_ENCODER_RESET] = 0;
+    g_holdingRegisters[REG_ENCODER_CALIB_WIRE_LENGTH_CM] = 300;
+    g_holdingRegisters[REG_ENCODER_CALIB_STATUS] = 0;
+    g_holdingRegisters[REG_ENCODER_CALIB_CURRENT_LENGTH_CM] = 0;
+    g_holdingRegisters[REG_ENCODER_CALIB_ORIGIN_STATUS] = 0;
+    g_holdingRegisters[REG_ENCODER_UNROLLED_WIRE_LENGTH_CM] = 0;
 
     // Initialize other arrays
     for (int i = 0; i < INPUT_REG_COUNT; i++) {

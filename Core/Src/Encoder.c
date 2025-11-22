@@ -51,7 +51,8 @@
 #define NOISE_THRESHOLD_TICKS   2           // Ignore changes smaller than this
                                             // Helps reject electrical noise
                                             
-#define MAX_DELTA_PER_CYCLE     200         // Maximum expected count change per read cycle
+#define MAX_DELTA_PER_CYCLE     500         // ✅ FIX: Increased from 200 to 500
+                                            // Maximum expected count change per read cycle
                                             // Reject values above this as noise/error
                                             
 #define AUTO_RESET_THRESHOLD    32000       // Auto-reset counter before Modbus int16 overflow
@@ -63,7 +64,8 @@
 #define DMA_BUFFER_SIZE     100     // Kích thước buffer DMA (số xung tối đa giữa 2 lần đọc)
 
 // DMA buffer để lưu giá trị Input Capture
-static uint32_t dma_capture_buffer[DMA_BUFFER_SIZE];
+// ✅ FIX: Changed from uint32_t to uint16_t to match DMA configuration (HALFWORD)
+static uint16_t dma_capture_buffer[DMA_BUFFER_SIZE];
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PRIVATE STATE VARIABLES
@@ -127,14 +129,19 @@ Encoder_t encoder1;
 void Encoder_Init(void){
     // Initialize encoder hardware structure
     encoder1.Calib_Origin_Status = false;
+    encoder1.Status_Word = 0x0000;
     encoder1.Encoder_Count = 0;
-    encoder1.Encoder_Config = 100;
+    encoder1.Revolutions = 8;
+    encoder1.Rmax = 35;
+    encoder1.Rmin = 20;
+    encoder1.Wire_Length_CM = 300;
     encoder1.Encoder_Reset = 0;
-    encoder1.Encoder_Calib_Sensor_Status = 0;
-    encoder1.Encoder_Calib_Length_CM_Max = WIRE_LENGTH_CM;
-    encoder1.Encoder_Calib_Start = 0;
+    encoder1.Encoder_Calib_Length_CM_Max = 300;
     encoder1.Encoder_Calib_Status = 0;
     encoder1.Encoder_Calib_Current_Length_CM = 0;
+    encoder1.Unrolled_Wire_Length_CM = 0;
+    encoder1.Encoder_Calib_Sensor_Status = 0;
+    encoder1.Encoder_Calib_Start = 0;
     
     // Initialize DMA buffer
     for(int i = 0; i < DMA_BUFFER_SIZE; i++){
@@ -234,9 +241,10 @@ void Encoder_Read(Encoder_t* encoder){
     }
     
     // ───────────────────────────────────────────────────────────────────────────
-    // NOISE REJECTION: Ignore tiny changes
+    // NOISE REJECTION: Ignore tiny changes (only if threshold > 0)
     // ───────────────────────────────────────────────────────────────────────────
-    if (new_pulses < NOISE_THRESHOLD_TICKS && new_pulses > 0) {
+    // ✅ FIX: Only apply noise threshold if it's configured (> 0)
+    if (NOISE_THRESHOLD_TICKS > 0 && new_pulses < NOISE_THRESHOLD_TICKS && new_pulses > 0) {
         encoder_state.noise_reject_count++;
         return;
     }
@@ -296,11 +304,17 @@ void Encoder_Load(Encoder_t* encoder){
     // ═══════════════════════════════════════════════════════════════
     // CONFIGURATION REGISTERS (Modbus Master → Firmware)
     // ═══════════════════════════════════════════════════════════════
-    encoder->Encoder_Config = g_holdingRegisters[REG_M1_ENCODER_CONFIG];
-    encoder->Encoder_Reset = g_holdingRegisters[REG_M1_ENCODER_RESET];
-    encoder->Encoder_Calib_Sensor_Status = g_holdingRegisters[REG_M1_CALIB_SENSOR_STATUS];
-    encoder->Encoder_Calib_Length_CM_Max = g_holdingRegisters[REG_M1_CALIB_DISTANCE_CM];
-    encoder->Encoder_Calib_Start = g_holdingRegisters[REG_M1_CALIB_START];
+    
+    encoder->Revolutions = g_holdingRegisters[REG_ENCODER_REVOLUTIONS];
+    encoder->Rmax = g_holdingRegisters[REG_ENCODER_RMAX];
+    encoder->Rmin = g_holdingRegisters[REG_ENCODER_RMIN];
+    encoder->Wire_Length_CM = g_holdingRegisters[REG_ENCODER_WIRE_LENGTH_CM];
+    encoder->Encoder_Reset = g_holdingRegisters[REG_ENCODER_RESET];
+    encoder->Encoder_Calib_Length_CM_Max = g_holdingRegisters[REG_ENCODER_CALIB_WIRE_LENGTH_CM];
+    encoder->Encoder_Calib_Status = g_holdingRegisters[REG_ENCODER_CALIB_STATUS];
+    encoder->Encoder_Calib_Current_Length_CM = g_holdingRegisters[REG_ENCODER_CALIB_CURRENT_LENGTH_CM];
+    encoder->Calib_Origin_Status = g_holdingRegisters[REG_ENCODER_CALIB_ORIGIN_STATUS] ? true : false;
+
     
     // ═══════════════════════════════════════════════════════════════
     // MEASURED VALUES (DO NOT load from Modbus)
@@ -350,25 +364,19 @@ void Encoder_Save(Encoder_t* encoder){
     // ═══════════════════════════════════════════════════════════════
     // MEASURED VALUES (Firmware → Modbus Master)
     // ═══════════════════════════════════════════════════════════════
-    g_holdingRegisters[REG_M1_ENCODER_COUNT] = encoder->Encoder_Count;
-    g_holdingRegisters[REG_M1_UNROLLED_WIRE_LENGTH_CM] = encoder->Encoder_Calib_Current_Length_CM;
-    g_holdingRegisters[REG_M1_CALIB_STATUS] = encoder->Encoder_Calib_Status;
+    g_holdingRegisters[REG_ENCODER_COUNT    ] = encoder->Encoder_Count;
+    g_holdingRegisters[REG_ENCODER_REVOLUTIONS] = encoder->Revolutions;
+    g_holdingRegisters[REG_ENCODER_RMAX] = encoder->Rmax;
+    g_holdingRegisters[REG_ENCODER_RMIN] = encoder->Rmin;
+    g_holdingRegisters[REG_ENCODER_WIRE_LENGTH_CM] = encoder->Wire_Length_CM;
+    g_holdingRegisters[REG_ENCODER_RESET] = encoder->Encoder_Reset;
+    g_holdingRegisters[REG_ENCODER_CALIB_WIRE_LENGTH_CM] = encoder->Encoder_Calib_Length_CM_Max;
+    g_holdingRegisters[REG_ENCODER_CALIB_STATUS] = encoder->Encoder_Calib_Status;
+    g_holdingRegisters[REG_ENCODER_CALIB_CURRENT_LENGTH_CM] = encoder->Encoder_Calib_Current_Length_CM;
+    g_holdingRegisters[REG_ENCODER_CALIB_ORIGIN_STATUS] = encoder->Calib_Origin_Status ? 1 : 0;
+    g_holdingRegisters[REG_ENCODER_UNROLLED_WIRE_LENGTH_CM] = encoder->Unrolled_Wire_Length_CM;
     
-    // ═══════════════════════════════════════════════════════════════
-    // BOOLEAN TO MODBUS CONVERSION (CRITICAL!)
-    // ═══════════════════════════════════════════════════════════════
-    // Modbus standard: 0 = FALSE, 1 = TRUE (for holding registers)
-    // Use explicit ternary operator for safety and clarity
-    g_holdingRegisters[REG_M1_CALIB_ORIGIN_STATUS] = encoder->Calib_Origin_Status ? 1 : 0;
-    
-    // ═══════════════════════════════════════════════════════════════
-    // CONFIGURATION ECHO-BACK (for master verification)
-    // ═══════════════════════════════════════════════════════════════
-    g_holdingRegisters[REG_M1_ENCODER_CONFIG] = encoder->Encoder_Config;
-    g_holdingRegisters[REG_M1_ENCODER_RESET] = encoder->Encoder_Reset;
-    g_holdingRegisters[REG_M1_CALIB_SENSOR_STATUS] = encoder->Encoder_Calib_Sensor_Status;
-    g_holdingRegisters[REG_M1_CALIB_DISTANCE_CM] = encoder->Encoder_Calib_Length_CM_Max;
-    g_holdingRegisters[REG_M1_CALIB_START] = encoder->Encoder_Calib_Start;
+    g_holdingRegisters[REG_ENCODER_STATUS_WORD] = encoder->Status_Word;
 }
 
 void Encoder_Process(Encoder_t* encoder){
@@ -379,7 +387,8 @@ void Encoder_Process(Encoder_t* encoder){
     
     // ✅ FIX: Lưu kết quả đo độ dài vào struct encoder
     uint16_t measured_length = Encoder_MeasureLength(encoder);
-    encoder->Encoder_Calib_Current_Length_CM = measured_length / 10; // Convert mm to cm
+    encoder->Encoder_Calib_Current_Length_CM = measured_length / 10;
+    encoder->Unrolled_Wire_Length_CM = measured_length / 10; // Convert mm to cm
 
 }
 
@@ -442,7 +451,7 @@ uint16_t Encoder_MeasureLength(Encoder_t* encoder) {
     // pulse_count đã được cập nhật bởi Encoder_Read() từ DMA
     
     uint32_t current_count = encoder_state.pulse_count;
-    uint16_t last_count = encoder_state.last_encoder_count;
+    uint16_t  last_count = encoder_state.last_encoder_count;
     uint32_t delta_abs = 0;
     
     // Calculate unsigned delta
@@ -486,10 +495,10 @@ uint16_t Encoder_MeasureLength(Encoder_t* encoder) {
     // ───────────────────────────────────────────────────────────────────────────
     
     // Convert ticks to revolutions
-    float delta_revolutions = (float)delta_signed / (float)ENCODER_CPR;
+    float delta_revolutions = (float)delta_signed / (float)encoder->Revolutions;
     
     // Calculate current spool circumference
-    float current_circumference = 2.0f * M_PI * encoder_state.current_radius_mm;
+    float current_circumference = 2.0f * M_PI * encoder->Rmax;
     
     // Calculate linear displacement (can be positive or negative)
     float delta_length_mm = current_circumference * delta_revolutions;
@@ -501,8 +510,8 @@ uint16_t Encoder_MeasureLength(Encoder_t* encoder) {
     if (encoder_state.unrolled_length_mm < 0.0f) {
         encoder_state.unrolled_length_mm = 0.0f;
     }
-    if (encoder_state.unrolled_length_mm > WIRE_LENGTH_MM) {
-        encoder_state.unrolled_length_mm = WIRE_LENGTH_MM;
+    if (encoder_state.unrolled_length_mm > encoder->Wire_Length_CM * 10.0f) {
+        encoder_state.unrolled_length_mm = encoder->Wire_Length_CM * 10.0f;
     }
     
     // ───────────────────────────────────────────────────────────────────────────
@@ -511,21 +520,21 @@ uint16_t Encoder_MeasureLength(Encoder_t* encoder) {
     // This model accounts for the fact that wire volume is proportional to
     // the difference in spool area (π×R²), not radius directly
     
-    float length_ratio = encoder_state.unrolled_length_mm / WIRE_LENGTH_MM;
+    float length_ratio = encoder_state.unrolled_length_mm / (encoder->Wire_Length_CM * 10.0f);
     
     // Nonlinear model: R² decreases linearly with unrolled length
-    float radius_squared = SPOOL_RADIUS_FULL_MM * SPOOL_RADIUS_FULL_MM - 
-                          (SPOOL_RADIUS_FULL_MM * SPOOL_RADIUS_FULL_MM - 
-                           SPOOL_RADIUS_EMPTY_MM * SPOOL_RADIUS_EMPTY_MM) * length_ratio;
+    float radius_squared = encoder->Rmax * encoder->Rmax - 
+                          (encoder->Rmax * encoder->Rmax - 
+                           encoder->Rmin * encoder->Rmin) * length_ratio;
     
     encoder_state.current_radius_mm = sqrtf(radius_squared);
     
     // Clamp radius to physical limits (safety check)
-    if (encoder_state.current_radius_mm < SPOOL_RADIUS_EMPTY_MM) {
-        encoder_state.current_radius_mm = SPOOL_RADIUS_EMPTY_MM;
+    if (encoder_state.current_radius_mm < encoder->Rmin) {
+        encoder_state.current_radius_mm = encoder->Rmin;
     }
-    if (encoder_state.current_radius_mm > SPOOL_RADIUS_FULL_MM) {
-        encoder_state.current_radius_mm = SPOOL_RADIUS_FULL_MM;
+    if (encoder_state.current_radius_mm > encoder->Rmax) {
+        encoder_state.current_radius_mm = encoder->Rmax ;
     }
     
     // ───────────────────────────────────────────────────────────────────────────
@@ -541,7 +550,7 @@ uint16_t Encoder_MeasureLength(Encoder_t* encoder) {
     // STEP 6: Update last_encoder_count for next delta calculation
     // ───────────────────────────────────────────────────────────────────────────
     // ✅ CRITICAL: Update AFTER all calculations are done
-    encoder_state.last_encoder_count = (uint16_t)current_count;
+    encoder_state.last_encoder_count = current_count;
     
     // Return filtered result in millimeters
     return (uint16_t)encoder_state.filtered_length_mm;
@@ -674,7 +683,7 @@ uint32_t Encoder_GetDMAHalfComplete(void){
     return encoder_state.dma_half_complete;
 }
 
-/**
+/** 
  * @brief Get DMA Full Complete count
  * 
  * Returns the number of times DMA full-transfer callback was triggered.
