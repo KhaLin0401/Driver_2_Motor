@@ -242,7 +242,7 @@ uint8_t Motor_HandleOnOff(MotorRegisterMap_t* motor) {
         motor->Status_Word = 0x0001;
         g_holdingRegisters[REG_M1_STATUS_WORD] = 0x0001;
         // Xuất PWM theo tốc độ đặt
-        duty = motor->Command_Speed;
+        duty = motor->Command_Speed * 0.98;
         motor->Actual_Speed = duty; // Update actual speed in ON/OFF mode
         
         // ✅ CRITICAL FIX: OUTPUT PWM WHEN ENABLED
@@ -369,6 +369,16 @@ uint8_t Motor_HandlePosition(MotorRegisterMap_t* motor){
         pid_state->output = 0.0f;
         pid_state->error = 0.0f;
         
+        // Reset acceleration limiting state (declared as static in code below)
+        // This ensures smooth start from 0 when re-enabled
+        static float previous_output1 = 0.0f;
+        static float previous_output2 = 0.0f;
+        if (motor_id == 1) {
+            previous_output1 = 0.0f;
+        } else {
+            previous_output2 = 0.0f;
+        }
+        
         // Reset actual speed when disabled
         motor->Actual_Speed = 0;
         
@@ -440,6 +450,32 @@ uint8_t Motor_HandlePosition(MotorRegisterMap_t* motor){
     // PID_Compute_Position(motor_id, setpoint_cm, feedback_cm)
     // setpoint = target position (cm), feedback = current position (cm)
     float output = PID_Compute_Position(motor_id, (float)target_position, (float)current_position);
+    
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // ✅ ACCELERATION LIMITING - Giới hạn tốc độ thay đổi output
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // Prevents sudden jumps in motor speed by limiting acceleration/deceleration
+    // Max_Acc is in %/s, we need %/cycle (cycle = 10ms = 0.01s)
+    static float previous_output1 = 0.0f;
+    static float previous_output2 = 0.0f;
+    float* prev_output = (motor_id == 1) ? &previous_output1 : &previous_output2;
+    
+    // Calculate max allowed change per cycle (Max_Acc is in %/second)
+    // Sample time = 10ms = 0.01s
+    float max_delta_per_cycle = motor->Max_Acc * 0.01f;
+    
+    // Apply acceleration limiting
+    if (output > *prev_output + max_delta_per_cycle) {
+        // Acceleration too high - limit increase
+        output = *prev_output + max_delta_per_cycle;
+    } else if (output < *prev_output - max_delta_per_cycle) {
+        // Deceleration too high - limit decrease
+        output = *prev_output - max_delta_per_cycle;
+    }
+    
+    // Store current output for next cycle
+    *prev_output = output;
+    // ═══════════════════════════════════════════════════════════════════════════════
     
     motor->Actual_Speed = (uint8_t)output;
 
