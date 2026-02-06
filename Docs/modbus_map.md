@@ -32,7 +32,7 @@
 | 0x0007  | M1_PID_Kp               | uint16   | R/W | PID Kp gain (×100)                           | 100     |             |
 | 0x0008  | M1_PID_Ki               | uint16   | R/W | PID Ki gain (×100)                           | 10      |             |
 | 0x0009  | M1_PID_Kd               | uint16   | R/W | PID Kd gain (×100)                           | 5       |             |
-| 0x000A  | M1_Max_Acceleration     | uint16   | R/W | Maximum acceleration rate                    | 5       |             |
+| 0x000A  | M1_Max_Acceleration     | uint16   | R/W |q Maximum acceleration rate                    | 5       |             |
 | 0x000B  | M1_Max_Deceleration     | uint16   | R/W | Maximum deceleration rate                    | 4       |             |
 | 0x000C  | M1_Status_Word          | uint16   | R   | Motor status flags                           | 0x0000  |             |
 | 0x000D  | M1_Error_Code           | uint16   | R   | Error code if any                            | 0       |             |

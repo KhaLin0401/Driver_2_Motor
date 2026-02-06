@@ -165,33 +165,7 @@ void Encoder_Init(void){
     encoder_state.initialized = true;
 }
 
-/**
- * ═══════════════════════════════════════════════════════════════════════════════
- * @brief Read pulse count from DMA and update encoder state
- * ═══════════════════════════════════════════════════════════════════════════════
- * 
- * INPUT CAPTURE + DMA OPERATION:
- * ─────────────────────────────────────────────────────────────────────────────
- * 1. DMA tự động lưu giá trị CCR1 vào buffer mỗi khi có cạnh xuống
- * 2. DMA counter (CNDTR) đếm ngược từ DMA_BUFFER_SIZE → 0
- * 3. Khi CNDTR = 0, DMA tự động reset về DMA_BUFFER_SIZE (circular mode)
- * 4. Software đọc CNDTR để tính số xung mới
- * 
- * PULSE COUNTING ALGORITHM:
- * ─────────────────────────────────────────────────────────────────────────────
- * - DMA counter giảm mỗi khi có xung: 100 → 99 → 98 → ...
- * - Số xung mới = last_dma_counter - current_dma_counter
- * - Nếu DMA wrapped (current > last): xung = last + (DMA_BUFFER_SIZE - current)
- * 
- * ADVANTAGES:
- * ─────────────────────────────────────────────────────────────────────────────
- * ✅ Không bị mất xung khi CPU bận (DMA hoạt động độc lập)
- * ✅ Không cần polling liên tục (chỉ đọc khi cần)
- * ✅ Chính xác cao (hardware capture timestamp)
- * ✅ Giảm tải CPU (DMA xử lý tự động)
- * 
- * ═══════════════════════════════════════════════════════════════════════════════
- */
+
 void Encoder_Read(Encoder_t* encoder){
     // ───────────────────────────────────────────────────────────────────────────
     // Handle manual reset request
